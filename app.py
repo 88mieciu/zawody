@@ -2,6 +2,11 @@ import streamlit as st
 import pandas as pd
 import json
 import os
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet
+import io
 
 # --- Ścieżka do pliku przechowującego dane ---
 DATA_FILE = "zawody_data.json"
@@ -32,6 +37,66 @@ def reset_zawody():
     }
     if os.path.exists(DATA_FILE):
         os.remove(DATA_FILE)
+
+# --- Funkcja generowania PDF z wynikami ---
+def generuj_pdf_reportlab(df_sorted):
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4)
+    elements = []
+    styles = getSampleStyleSheet()
+    heading = styles['Heading1']
+
+    # --- Ranking ogólny ---
+    elements.append(Paragraph("📊 Ranking końcowy (wszyscy zawodnicy)", heading))
+    elements.append(Spacer(1, 10))
+
+    data = [["Miejsce", "Imię", "Sektor", "Stanowisko", "Waga", "Miejsce w sektorze"]]
+    for _, row in df_sorted.iterrows():
+        data.append([
+            int(row['miejsce_ogolne']),
+            row['imie'],
+            row['sektor'],
+            row['stanowisko'],
+            row['waga'],
+            int(row['miejsce_w_sektorze'])
+        ])
+    t = Table(data, repeatRows=1)
+    t.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.black),
+        ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
+        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+    ]))
+    elements.append(t)
+    elements.append(Spacer(1, 20))
+
+    # --- Podsumowanie sektorów ---
+    elements.append(Paragraph("📌 Podsumowanie sektorów", heading))
+    elements.append(Spacer(1, 10))
+
+    for sektor, grupa in df_sorted.groupby("sektor"):
+        elements.append(Paragraph(f"Sektor {sektor}", styles['Heading2']))
+        data = [["Imię", "Stanowisko", "Waga", "Miejsce w sektorze"]]
+        for _, row in grupa.sort_values(by="waga", ascending=False).iterrows():
+            data.append([
+                row['imie'],
+                row['stanowisko'],
+                row['waga'],
+                int(row['miejsce_w_sektorze'])
+            ])
+        t = Table(data, repeatRows=1)
+        t.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.black),
+            ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
+            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+        ]))
+        elements.append(t)
+        elements.append(Spacer(1, 15))
+
+    doc.build(elements)
+    buffer.seek(0)
+    return buffer
 
 # --- Inicjalizacja stanu ---
 if "S" not in st.session_state:
@@ -71,7 +136,6 @@ if S["etap"] == 1:
 elif S["etap"] == 2:
     st.markdown("<h3 style='font-size:20px'>📍 Krok 2: Definicja sektorów</h3>", unsafe_allow_html=True)
 
-    # --- Informacja o przewidywanej liczbie zawodników na sektor ---
     if S["liczba_zawodnikow"] > 0 and S["liczba_sektorow"] > 0:
         base = S["liczba_zawodnikow"] // S["liczba_sektorow"]
         remainder = S["liczba_zawodnikow"] % S["liczba_sektorow"]
@@ -221,24 +285,12 @@ elif S["etap"] == 4:
                 tabela = grupa.sort_values(by="waga", ascending=False)[["imie","stanowisko","waga","miejsce_w_sektorze"]]
                 st.dataframe(tabela, hide_index=True)
 
-            # --- Eksport do TXT ---
-            txt_lines = ["📊 Ranking końcowy (wszyscy zawodnicy):\n"]
-            txt_lines.append("Miejsce\tImię\tSektor\tStanowisko\tWaga\tMiejsce w sektorze")
-            for _, row in df_sorted.iterrows():
-                txt_lines.append(f"{int(row['miejsce_ogolne'])}\t{row['imie']}\t{row['sektor']}\t{row['stanowisko']}\t{row['waga']}\t{int(row['miejsce_w_sektorze'])}")
-
-            txt_lines.append("\n📌 Podsumowanie sektorów:\n")
-            for sektor, grupa in df_sorted.groupby("sektor"):
-                txt_lines.append(f"\nSektor {sektor}")
-                tabela = grupa.sort_values(by="waga", ascending=False)[["imie","stanowisko","waga","miejsce_w_sektorze"]]
-                txt_lines.append("Imię\tStanowisko\tWaga\tMiejsce w sektorze")
-                for _, row in tabela.iterrows():
-                    txt_lines.append(f"{row['imie']}\t{row['stanowisko']}\t{row['waga']}\t{int(row['miejsce_w_sektorze'])}")
-
-            txt_data = "\n".join(txt_lines)
-            st.download_button("💾 Pobierz wyniki jako TXT", data=txt_data,
-                               file_name="wyniki_zawodow.txt", mime="text/plain")
-
-        if st.button("⬅️ Wróć do zawodników"):
-            S["etap"] = 3
-            zapisz_dane(S)
+            # --- Pobieranie PDF ---
+            if st.button("💾 Pobierz wyniki jako PDF"):
+                pdf_bytes = generuj_pdf_reportlab(df_sorted)
+                st.download_button(
+                    label="📄 Pobierz PDF",
+                    data=pdf_bytes,
+                    file_name="wyniki_zawodow.pdf",
+                    mime="application/pdf"
+                )
