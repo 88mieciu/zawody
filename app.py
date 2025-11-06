@@ -67,30 +67,22 @@ with st.form("form_reset"):
 if S["etap"] == 1:
     st.markdown("<h3 style='font-size:20px'>⚙️ Krok 1: Ustawienia zawodów</h3>", unsafe_allow_html=True)
 
-    liczba_zawodnikow_default = S.get("liczba_zawodnikow")
-    if not isinstance(liczba_zawodnikow_default, int) or liczba_zawodnikow_default < 1:
-        liczba_zawodnikow_default = 10
-
-    liczba_stanowisk_default = S.get("liczba_stanowisk")
-    if not isinstance(liczba_stanowisk_default, int) or liczba_stanowisk_default < 1:
-        liczba_stanowisk_default = 10
-
-    liczba_sektorow_default = S.get("liczba_sektorow")
-    if not isinstance(liczba_sektorow_default, int) or liczba_sektorow_default < 1:
-        liczba_sektorow_default = 3
+    liczba_zawodnikow_default = S.get("liczba_zawodnikow", 10)
+    if liczba_zawodnikow_default < 1: liczba_zawodnikow_default = 10
+    liczba_stanowisk_default = S.get("liczba_stanowisk", 10)
+    if liczba_stanowisk_default < 1: liczba_stanowisk_default = 10
+    liczba_sektorow_default = S.get("liczba_sektorow", 3)
+    if liczba_sektorow_default < 1: liczba_sektorow_default = 3
 
     with st.form("form_etap1"):
         liczba_zawodnikow = st.number_input(
-            "Liczba zawodników:", min_value=1, max_value=200,
-            value=liczba_zawodnikow_default
+            "Liczba zawodników:", min_value=1, max_value=200, value=liczba_zawodnikow_default
         )
         liczba_stanowisk = st.number_input(
-            "Liczba stanowisk:", min_value=1, max_value=200,
-            value=liczba_stanowisk_default
+            "Liczba stanowisk:", min_value=1, max_value=200, value=liczba_stanowisk_default
         )
         liczba_sektorow = st.number_input(
-            "Liczba sektorów:", min_value=1, max_value=20,
-            value=liczba_sektorow_default
+            "Liczba sektorów:", min_value=1, max_value=20, value=liczba_sektorow_default
         )
 
         if st.form_submit_button("➡️ Dalej – definiuj sektory"):
@@ -127,8 +119,6 @@ elif S["etap"] == 2:
         for i in range(sektory_n):
             nazwa = chr(65 + i)
             key = f"sektor_{nazwa}"
-
-            # inicjalizacja w session_state
             if key not in st.session_state or not isinstance(st.session_state[key], str):
                 val = S.get("sektory", {}).get(nazwa, [])
                 st.session_state[key] = ",".join(map(str, val)) if isinstance(val, list) else ""
