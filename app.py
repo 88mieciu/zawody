@@ -71,18 +71,18 @@ if S["etap"] == 1:
 elif S["etap"] == 2:
     st.markdown("<h3 style='font-size:20px'>📍 Krok 2: Definicja sektorów</h3>", unsafe_allow_html=True)
 
-    # --- Podsumowanie liczby stanowisk na sektor ---
-    if S["liczba_stanowisk"] > 0 and S["liczba_sektorow"] > 0:
-        base = S["liczba_stanowisk"] // S["liczba_sektorow"]
-        remainder = S["liczba_stanowisk"] % S["liczba_sektorow"]
-        stanowiska_info = []
+    # --- Informacja o przewidywanej liczbie zawodników na sektor ---
+    if S["liczba_zawodnikow"] > 0 and S["liczba_sektorow"] > 0:
+        base = S["liczba_zawodnikow"] // S["liczba_sektorow"]
+        remainder = S["liczba_zawodnikow"] % S["liczba_sektorow"]
+        zawodnicy_info = []
         for i in range(S["liczba_sektorow"]):
             nazwa = chr(65 + i)
             ilosc = base + (1 if i < remainder else 0)
-            stanowiska_info.append(f"Sektor {nazwa}: {ilosc} stanowisk")
-        st.info("ℹ️ Rozkład stanowisk:\n" + "\n".join(stanowiska_info))
+            zawodnicy_info.append(f"Sektor {nazwa}: {ilosc} zawodników")
+        st.info("ℹ️ Przewidywana liczba zawodników na sektor:\n" + "\n".join(zawodnicy_info))
         if remainder != 0:
-            st.warning(f"⚠️ Nie wszystkie sektory mają równą liczbę miejsc. Największa różnica to 1 stanowisko.")
+            st.warning(f"⚠️ Nie wszystkie sektory mają równą liczbę zawodników. Jeden sektor może mieć o 1 zawodnika więcej.")
 
     sektory = {}
     for i in range(S["liczba_sektorow"]):
@@ -234,4 +234,3 @@ elif S["etap"] == 4:
         if st.button("⬅️ Wróć do zawodników"):
             S["etap"] = 3
             zapisz_dane(S)
-
