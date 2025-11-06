@@ -49,7 +49,8 @@ st.markdown("<h1 style='font-size:28px'>🎣 Panel organizatora zawodów wędkar
 # Reset zawodów
 # -----------------------------
 with st.form("form_reset"):
-    if st.form_submit_button("🧹 Resetuj zawody"):
+    reset = st.form_submit_button("🧹 Resetuj zawody")
+    if reset:
         st.session_state["S"] = {
             "liczba_zawodnikow": 10,
             "liczba_stanowisk": 10,
@@ -85,7 +86,8 @@ if S["etap"] == 1:
             "Liczba sektorów:", min_value=1, max_value=20, value=liczba_sektorow_default
         )
 
-        if st.form_submit_button("➡️ Dalej – definiuj sektory"):
+        submit = st.form_submit_button("➡️ Dalej – definiuj sektory")
+        if submit:
             S["liczba_zawodnikow"] = liczba_zawodnikow
             S["liczba_stanowisk"] = liczba_stanowisk
             S["liczba_sektorow"] = liczba_sektorow
@@ -133,7 +135,8 @@ elif S["etap"] == 2:
                 if lista:
                     sektory[nazwa] = lista
 
-        if st.form_submit_button("💾 Zapisz sektory"):
+        submit_save = st.form_submit_button("💾 Zapisz sektory")
+        if submit_save:
             if len(sektory) != sektory_n or any(len(v)==0 for v in sektory.values()):
                 st.error("Wszystkie sektory muszą mieć przynajmniej jedno stanowisko.")
             else:
@@ -148,106 +151,8 @@ elif S["etap"] == 2:
                     st.experimental_rerun()
 
     with st.form("form_wstecz2"):
-        if st.form_submit_button("⬅️ Wstecz"):
+        submit_back = st.form_submit_button("⬅️ Wstecz")
+        if submit_back:
             S["etap"] = 1
             save_state()
             st.experimental_rerun()
-
-# -----------------------------
-# ETAP 3 — Dodawanie zawodników
-# -----------------------------
-elif S["etap"] == 3:
-    st.markdown("<h3 style='font-size:20px'>👤 Krok 3: Dodawanie zawodników</h3>", unsafe_allow_html=True)
-
-    st.subheader("Zdefiniowane sektory:")
-    for nazwa, stanowiska in S["sektory"].items():
-        st.write(f"**Sektor {nazwa}:** {stanowiska}")
-
-    wszystkie = sorted(sum(S["sektory"].values(), []))
-    zajete = [z["stanowisko"] for z in S["zawodnicy"]]
-    dostepne = [s for s in wszystkie if s not in zajete]
-
-    with st.form("form_dodaj_zawodnika"):
-        imie = st.text_input("Imię i nazwisko zawodnika:", key="new_name")
-        stano = st.selectbox("Stanowisko", dostepne, key="new_stanowisko")
-        if st.form_submit_button("➕ Dodaj zawodnika") and imie.strip():
-            sek = next((k for k, v in S["sektory"].items() if stano in v), None)
-            if sek:
-                S["zawodnicy"].append({
-                    "imie": imie.strip(),
-                    "stanowisko": stano,
-                    "sektor": sek,
-                    "waga": 0
-                })
-                save_state()
-                st.experimental_rerun()
-            else:
-                st.error("Wybrane stanowisko nie należy do żadnego sektora!")
-
-    if S["zawodnicy"]:
-        st.subheader("📋 Lista zawodników")
-        for i, z in enumerate(S["zawodnicy"]):
-            col1, col2, col3 = st.columns([3,1,1])
-            key_waga = f"waga_{i}"
-            if key_waga not in st.session_state:
-                st.session_state[key_waga] = z.get("waga", 0)
-
-            with col1:
-                new_name = st.text_input(f"Zawodnik {i+1}", z["imie"], key=f"imie_{i}")
-                if new_name != z["imie"]:
-                    z["imie"] = new_name
-                    save_state()
-
-            with col2:
-                zajete_inne = [x["stanowisko"] for j, x in enumerate(S["zawodnicy"]) if j != i]
-                dostepne_stan = [s for s in wszystkie if s not in zajete_inne or s == z["stanowisko"]]
-                idx = dostepne_stan.index(z["stanowisko"]) if z["stanowisko"] in dostepne_stan else 0
-                new_stan = st.selectbox("Stan.", dostepne_stan, index=idx, key=f"stan_{i}")
-                if new_stan != z["stanowisko"]:
-                    z["stanowisko"] = new_stan
-                    z["sektor"] = next(k for k,v in S["sektory"].items() if new_stan in v)
-                    save_state()
-
-            with col3:
-                if st.button("🗑️ Usuń", key=f"del_{i}"):
-                    del S["zawodnicy"][i]
-                    if key_waga in st.session_state:
-                        del st.session_state[key_waga]
-                    save_state()
-                    st.experimental_rerun()
-
-    with st.form("form_przejdz4"):
-        if st.form_submit_button("➡️ Przejdź do wyników") and S["zawodnicy"]:
-            S["etap"] = 4
-            save_state()
-            st.experimental_rerun()
-        elif st.form_submit_button("➡️ Przejdź do wyników") and not S["zawodnicy"]:
-            st.warning("Dodaj przynajmniej jednego zawodnika.")
-
-# -----------------------------
-# ETAP 4 — Wprowadzanie wyników + PDF
-# -----------------------------
-elif S["etap"] == 4:
-    st.markdown("<h3 style='font-size:20px'>⚖️ Krok 4: Wprowadzenie wyników</h3>", unsafe_allow_html=True)
-
-    if not S["zawodnicy"]:
-        st.warning("Brak zawodników.")
-        if st.button("⬅️ Wróć"):
-            S["etap"] = 3
-            save_state()
-            st.experimental_rerun()
-    else:
-        for i, z in enumerate(S["zawodnicy"]):
-            key_waga = f"waga_{i}"
-            if key_waga not in st.session_state:
-                st.session_state[key_waga] = z.get("waga", 0)
-
-            col1, col2 = st.columns([2,1])
-            with col1:
-                st.write(f"**{z['imie']}** ({z['sektor']}, st. {z['stanowisko']})")
-            with col2:
-                new_waga = st.number_input(
-                    "Waga (g)", 0, 120000, st.session_state[key_waga], step=10, key=key_waga
-                )
-                z["waga"] = new_waga
-                save_state()
