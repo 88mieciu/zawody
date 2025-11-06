@@ -1,20 +1,43 @@
 import streamlit as st
-
-import streamlit as st
 import pandas as pd
+import json
+import os
 
 st.set_page_config(page_title="Zawody wędkarskie", layout="wide")
 
+STAN_FILE = "stan_zawodow.json"
+
+# --- Funkcje do zapisu i odczytu stanu ---
+def zapisz_stan(S):
+    try:
+        with open(STAN_FILE, "w") as f:
+            json.dump(S, f)
+    except Exception as e:
+        st.error(f"Nie udało się zapisać stanu: {e}")
+
+def wczytaj_stan():
+    if os.path.exists(STAN_FILE):
+        try:
+            with open(STAN_FILE, "r") as f:
+                return json.load(f)
+        except Exception as e:
+            st.error(f"Nie udało się wczytać stanu: {e}")
+    return None
+
 # --- Inicjalizacja stanu ---
 if "S" not in st.session_state:
-    st.session_state["S"] = {
-        "liczba_zawodnikow": 0,
-        "liczba_stanowisk": 0,
-        "liczba_sektorow": 0,
-        "sektory": {},
-        "zawodnicy": [],
-        "etap": 1
-    }
+    stan_z_pliku = wczytaj_stan()
+    if stan_z_pliku:
+        st.session_state["S"] = stan_z_pliku
+    else:
+        st.session_state["S"] = {
+            "liczba_zawodnikow": 0,
+            "liczba_stanowisk": 0,
+            "liczba_sektorow": 0,
+            "sektory": {},
+            "zawodnicy": [],
+            "etap": 1
+        }
 
 S = st.session_state["S"]
 
@@ -30,6 +53,7 @@ if st.button("🧹 Resetuj zawody"):
         "zawodnicy": [],
         "etap": 1
     }
+    zapisz_stan(st.session_state["S"])
 
 # --- ETAP 1: KONFIGURACJA ---
 if S["etap"] == 1:
@@ -40,6 +64,7 @@ if S["etap"] == 1:
 
     if st.button("➡️ Dalej – definiuj sektory"):
         S["etap"] = 2
+        zapisz_stan(S)  # ✅ zapis po konfiguracji
 
 # --- ETAP 2: DEFINICJA SEKTORÓW ---
 elif S["etap"] == 2:
@@ -68,6 +93,7 @@ elif S["etap"] == 2:
             else:
                 S["sektory"] = sektory
                 S["etap"] = 3
+                zapisz_stan(S)  # ✅ zapis po zapisaniu sektorów
     with col2:
         if st.button("⬅️ Wstecz"):
             S["etap"] = 1
@@ -109,6 +135,7 @@ elif S["etap"] == 3:
                 S["zawodnicy"].append(
                     {"imie": imie.strip(), "stanowisko": stano, "sektor": sek, "waga": 0}
                 )
+                zapisz_stan(S)  # ✅ zapis po dodaniu zawodnika
 
     if S["zawodnicy"]:
         st.subheader("📋 Lista zawodników")
@@ -132,6 +159,7 @@ elif S["etap"] == 3:
             with col4:
                 if st.button("🗑️ Usuń", key=f"del_{i}"):
                     del S["zawodnicy"][i]
+                    zapisz_stan(S)  # ✅ zapis po usunięciu zawodnika
 
 # --- ETAP 4: WPROWADZANIE WYNIKÓW I PODSUMOWANIE ---
 elif S["etap"] == 4:
@@ -149,6 +177,7 @@ elif S["etap"] == 4:
                 st.write(f"**{z['imie']}** ({z['sektor']}, st. {z['stanowisko']})")
             with col2:
                 z["waga"] = st.number_input("Waga (g)", 0, 100000, z["waga"], step=10, key=f"waga_{i}")
+                zapisz_stan(S)  # ✅ zapis po wpisaniu każdej wagi
 
         if st.button("🏆 Pokaż wyniki końcowe"):
             df = pd.DataFrame(S["zawodnicy"])
