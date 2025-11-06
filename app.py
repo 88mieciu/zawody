@@ -25,7 +25,6 @@ def wczytaj_dane():
             return None
     return None
 
-# --- Funkcja resetu ---
 def reset_zawody():
     st.session_state["S"] = {
         "nazwa_zawodow": "",
@@ -39,19 +38,18 @@ def reset_zawody():
     if os.path.exists(DATA_FILE):
         os.remove(DATA_FILE)
 
-# --- Funkcja generowania PDF z wynikami ---
 def generuj_pdf_reportlab(df_sorted, nazwa_zawodow=""):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4)
     elements = []
     styles = getSampleStyleSheet()
 
-    # Nagłówek z nazwą zawodów
+    # --- Nagłówek z nazwą zawodów ---
     if nazwa_zawodow:
         elements.append(Paragraph(f"🏆 {nazwa_zawodow}", styles['Heading1']))
         elements.append(Spacer(1, 15))
 
-    # Ranking ogólny
+    # --- Ranking ogólny ---
     elements.append(Paragraph("📊 Ranking końcowy (wszyscy zawodnicy)", styles['Heading2']))
     elements.append(Spacer(1, 10))
     data = [["Miejsce", "Imię", "Sektor", "Stanowisko", "Waga", "Miejsce w sektorze"]]
@@ -74,14 +72,20 @@ def generuj_pdf_reportlab(df_sorted, nazwa_zawodow=""):
     elements.append(t)
     elements.append(Spacer(1, 20))
 
-    # Podsumowanie sektorów
+    # --- Podsumowanie sektorów z miejscem ogólnym ---
     elements.append(Paragraph("📌 Podsumowanie sektorów", styles['Heading2']))
     elements.append(Spacer(1, 10))
     for sektor, grupa in df_sorted.groupby("sektor"):
         elements.append(Paragraph(f"Sektor {sektor}", styles['Heading3']))
-        data = [["Imię", "Stanowisko", "Waga", "Miejsce w sektorze"]]
+        data = [["Imię", "Stanowisko", "Waga", "Miejsce w sektorze", "Miejsce ogólne"]]
         for _, row in grupa.sort_values(by="waga", ascending=False).iterrows():
-            data.append([row['imie'], row['stanowisko'], row['waga'], int(row['miejsce_w_sektorze'])])
+            data.append([
+                row['imie'],
+                row['stanowisko'],
+                row['waga'],
+                int(row['miejsce_w_sektorze']),
+                int(row['miejsce_ogolne'])
+            ])
         t = Table(data, repeatRows=1)
         t.setStyle(TableStyle([
             ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
@@ -123,10 +127,7 @@ st.button("🧹 Resetuj zawody", on_click=reset_zawody)
 # --- ETAP 1: KONFIGURACJA ---
 if S["etap"] == 1:
     st.markdown("<h3 style='font-size:20px'>⚙️ Krok 1: Ustawienia zawodów</h3>", unsafe_allow_html=True)
-
-    # Nazwa zawodów
     S["nazwa_zawodow"] = st.text_input("Nazwa zawodów:", S.get("nazwa_zawodow", ""))
-
     S["liczba_zawodnikow"] = st.number_input("Liczba zawodników:", 1, 40, S["liczba_zawodnikow"] or 10)
     S["liczba_stanowisk"] = st.number_input("Liczba stanowisk na łowisku:", 1, 100, S["liczba_stanowisk"] or 10)
     S["liczba_sektorow"] = st.number_input("Liczba sektorów:", 1, 10, S["liczba_sektorow"] or 3)
@@ -269,8 +270,14 @@ elif S["etap"] == 4:
 
         df = pd.DataFrame(S["zawodnicy"])
         df["miejsce_w_sektorze"] = df.groupby("sektor")["waga"].rank(ascending=False, method="min")
-        df["miejsce_ogolne"] = df["waga"].rank(ascending=False, method="min")
-        df_sorted = df.sort_values(by=["miejsce_ogolne","waga"], ascending=[True,False])
+
+        # --- Ranking ogólny wg miejsc sektorowych ---
+        df_sorted = pd.DataFrame()
+        for miejsce in sorted(df["miejsce_w_sektorze"].unique()):
+            grupa = df[df["miejsce_w_sektorze"] == miejsce].sort_values(by="waga", ascending=False)
+            df_sorted = pd.concat([df_sorted, grupa])
+
+        df_sorted["miejsce_ogolne"] = range(1, len(df_sorted)+1)
 
         st.markdown("<h4 style='font-size:18px'>📊 Ranking końcowy (wszyscy zawodnicy)</h4>", unsafe_allow_html=True)
         st.dataframe(df_sorted[["miejsce_ogolne","imie","sektor","stanowisko","waga","miejsce_w_sektorze"]], hide_index=True)
@@ -278,7 +285,7 @@ elif S["etap"] == 4:
         st.markdown("<h4 style='font-size:18px'>📌 Podsumowanie sektorów</h4>", unsafe_allow_html=True)
         for sektor, grupa in df_sorted.groupby("sektor"):
             st.write(f"**Sektor {sektor}**")
-            tabela = grupa.sort_values(by="waga", ascending=False)[["imie","stanowisko","waga","miejsce_w_sektorze"]]
+            tabela = grupa.sort_values(by="waga", ascending=False)[["imie","stanowisko","waga","miejsce_w_sektorze","miejsce_ogolne"]]
             st.dataframe(tabela, hide_index=True)
 
         pdf_bytes = generuj_pdf_reportlab(df_sorted, S.get("nazwa_zawodow", ""))
