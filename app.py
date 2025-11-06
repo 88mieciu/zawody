@@ -68,13 +68,16 @@ if S["etap"] == 1:
 
     with st.form("form_etap1"):
         liczba_zawodnikow = st.number_input(
-            "Liczba zawodników:", 1, 200, S.get("liczba_zawodnikow", 10)
+            "Liczba zawodników:", min_value=1, max_value=200,
+            value=S.get("liczba_zawodnikow") if isinstance(S.get("liczba_zawodnikow"), int) else 10
         )
         liczba_stanowisk = st.number_input(
-            "Liczba stanowisk na łowisku:", 1, 200, S.get("liczba_stanowisk", 10)
+            "Liczba stanowisk:", min_value=1, max_value=200,
+            value=S.get("liczba_stanowisk") if isinstance(S.get("liczba_stanowisk"), int) else 10
         )
         liczba_sektorow = st.number_input(
-            "Liczba sektorów:", 1, 20, S.get("liczba_sektorow", 3)
+            "Liczba sektorów:", min_value=1, max_value=20,
+            value=S.get("liczba_sektorow") if isinstance(S.get("liczba_sektorow"), int) else 3
         )
 
         submit = st.form_submit_button("➡️ Dalej – definiuj sektory")
@@ -112,7 +115,6 @@ elif S["etap"] == 2:
         for i in range(sektory_n):
             nazwa = chr(65 + i)
             key = f"sektor_{nazwa}"
-            # inicjalizacja session_state
             if key not in st.session_state or not isinstance(st.session_state[key], list):
                 val = S.get("sektory", {}).get(nazwa, [])
                 if not isinstance(val, list):
