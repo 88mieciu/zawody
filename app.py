@@ -1,23 +1,43 @@
 import streamlit as st
-
-import streamlit as st
 import pandas as pd
+import json
+import os
 
-st.set_page_config(page_title="Zawody wędkarskie", layout="wide")
+# --- Ścieżka do pliku przechowującego dane ---
+DATA_FILE = "zawody_data.json"
+
+# --- Funkcje pomocnicze ---
+def zapisz_dane(S):
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(S, f, ensure_ascii=False, indent=2)
+
+def wczytaj_dane():
+    if os.path.exists(DATA_FILE):
+        try:
+            with open(DATA_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except:
+            return None
+    return None
 
 # --- Inicjalizacja stanu ---
 if "S" not in st.session_state:
-    st.session_state["S"] = {
-        "liczba_zawodnikow": 0,
-        "liczba_stanowisk": 0,
-        "liczba_sektorow": 0,
-        "sektory": {},
-        "zawodnicy": [],
-        "etap": 1
-    }
+    dane = wczytaj_dane()
+    if dane:
+        st.session_state["S"] = dane
+    else:
+        st.session_state["S"] = {
+            "liczba_zawodnikow": 0,
+            "liczba_stanowisk": 0,
+            "liczba_sektorow": 0,
+            "sektory": {},
+            "zawodnicy": [],
+            "etap": 1
+        }
 
 S = st.session_state["S"]
 
+st.set_page_config(page_title="Zawody wędkarskie", layout="wide")
 st.markdown("<h1 style='font-size:28px'>🎣 Panel organizatora zawodów wędkarskich by Wojtek Mierzejewski</h1>", unsafe_allow_html=True)
 
 # --- PRZYCISK RESET ---
@@ -30,6 +50,9 @@ if st.button("🧹 Resetuj zawody"):
         "zawodnicy": [],
         "etap": 1
     }
+    if os.path.exists(DATA_FILE):
+        os.remove(DATA_FILE)
+    st.experimental_rerun()  # wymusza powrót do pierwszego etapu
 
 # --- ETAP 1: KONFIGURACJA ---
 if S["etap"] == 1:
@@ -40,6 +63,7 @@ if S["etap"] == 1:
 
     if st.button("➡️ Dalej – definiuj sektory"):
         S["etap"] = 2
+        zapisz_dane(S)
 
 # --- ETAP 2: DEFINICJA SEKTORÓW ---
 elif S["etap"] == 2:
@@ -68,9 +92,11 @@ elif S["etap"] == 2:
             else:
                 S["sektory"] = sektory
                 S["etap"] = 3
+                zapisz_dane(S)
     with col2:
         if st.button("⬅️ Wstecz"):
             S["etap"] = 1
+            zapisz_dane(S)
 
 # --- ETAP 3: DODAWANIE ZAWODNIKÓW ---
 elif S["etap"] == 3:
@@ -83,12 +109,14 @@ elif S["etap"] == 3:
     with col1:
         if st.button("✏️ Edytuj sektory"):
             S["etap"] = 2
+            zapisz_dane(S)
     with col2:
         if st.button("➡️ Przejdź do wprowadzenia wyników"):
             if len(S["zawodnicy"]) == 0:
                 st.warning("⚠️ Najpierw dodaj zawodników.")
             else:
                 S["etap"] = 4
+                zapisz_dane(S)
 
     wszystkie_dozwolone = sorted(sum(S["sektory"].values(), []))
     zajete = [z["stanowisko"] for z in S["zawodnicy"]]
@@ -109,6 +137,7 @@ elif S["etap"] == 3:
                 S["zawodnicy"].append(
                     {"imie": imie.strip(), "stanowisko": stano, "sektor": sek, "waga": 0}
                 )
+                zapisz_dane(S)
 
     if S["zawodnicy"]:
         st.subheader("📋 Lista zawodników")
@@ -132,6 +161,8 @@ elif S["etap"] == 3:
             with col4:
                 if st.button("🗑️ Usuń", key=f"del_{i}"):
                     del S["zawodnicy"][i]
+                    zapisz_dane(S)
+                    st.experimental_rerun()
 
 # --- ETAP 4: WPROWADZANIE WYNIKÓW I PODSUMOWANIE ---
 elif S["etap"] == 4:
@@ -141,6 +172,7 @@ elif S["etap"] == 4:
         st.warning("Brak zawodników. Wróć i dodaj ich najpierw.")
         if st.button("⬅️ Wróć do zawodników"):
             S["etap"] = 3
+            zapisz_dane(S)
     else:
         # Wprowadzanie wag
         for i,z in enumerate(S["zawodnicy"]):
@@ -149,6 +181,7 @@ elif S["etap"] == 4:
                 st.write(f"**{z['imie']}** ({z['sektor']}, st. {z['stanowisko']})")
             with col2:
                 z["waga"] = st.number_input("Waga (g)", 0, 100000, z["waga"], step=10, key=f"waga_{i}")
+        zapisz_dane(S)
 
         if st.button("🏆 Pokaż wyniki końcowe"):
             df = pd.DataFrame(S["zawodnicy"])
@@ -184,3 +217,4 @@ elif S["etap"] == 4:
 
         if st.button("⬅️ Wróć do zawodników"):
             S["etap"] = 3
+            zapisz_dane(S)
