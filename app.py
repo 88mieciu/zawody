@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import json
 import os
+from fpdf import FPDF
+import io
 
 st.set_page_config(page_title="Zawody wędkarskie", layout="wide")
 
@@ -261,6 +263,41 @@ elif S["etap"] == 4:
                     z["waga"] = new_waga
                     save_state()
 
+        def export_to_pdf(df, sektory_grouped):
+            pdf = FPDF()
+            pdf.set_auto_page_break(auto=True, margin=15)
+            pdf.add_page()
+            pdf.set_font("Arial", "B", 16)
+            pdf.cell(0, 10, "🎣 Wyniki zawodów wędkarskich", ln=True, align="C")
+            pdf.ln(5)
+
+            # Ranking globalny
+            pdf.set_font("Arial", "B", 14)
+            pdf.cell(0, 10, "📊 Ranking końcowy – wszyscy zawodnicy", ln=True)
+            pdf.set_font("Arial", "", 12)
+            pdf.ln(2)
+            for i, row in df.iterrows():
+                pdf.cell(0, 6, f"{i+1}. {row['imie']} | Sektor: {row['sektor']} | Stanowisko: {row['stanowisko']} | Waga: {row['waga']}g | Miejsce w sektorze: {int(row['miejsce_w_sektorze'])}", ln=True)
+            pdf.ln(5)
+
+            # Wyniki sektorów
+            pdf.set_font("Arial", "B", 14)
+            pdf.cell(0, 10, "📌 Wyniki sektorów", ln=True)
+            pdf.set_font("Arial", "", 12)
+            pdf.ln(2)
+            for sektor, grupa in sektory_grouped:
+                pdf.set_font("Arial", "B", 12)
+                pdf.cell(0, 8, f"Sektor {sektor}", ln=True)
+                pdf.set_font("Arial", "", 12)
+                for _, row in grupa.iterrows():
+                    pdf.cell(0, 6, f"{row['imie']} | Stanowisko: {row['stanowisko']} | Waga: {row['waga']}g | Miejsce w sektorze: {int(row['miejsce_w_sektorze'])}", ln=True)
+                pdf.ln(3)
+
+            pdf_buffer = io.BytesIO()
+            pdf.output(pdf_buffer)
+            pdf_buffer.seek(0)
+            return pdf_buffer
+
         if st.button("🏆 Pokaż wyniki końcowe"):
             df = pd.DataFrame(S["zawodnicy"])
             df["miejsce_w_sektorze"] = df.groupby("sektor")["waga"].rank(ascending=False, method="min")
@@ -273,6 +310,15 @@ elif S["etap"] == 4:
             for sektor, grupa in df_sorted.groupby("sektor"):
                 st.write(f"**Sektor {sektor}**")
                 st.dataframe(grupa, hide_index=True)
+
+            # Eksport PDF
+            pdf_file = export_to_pdf(df_sorted, df_sorted.groupby("sektor"))
+            st.download_button(
+                label="⬇️ Pobierz wyniki do PDF",
+                data=pdf_file,
+                file_name="wyniki_zawodow.pdf",
+                mime="application/pdf"
+            )
 
         if st.button("⬅️ Wróć do zawodników"):
             S["etap"] = 3
