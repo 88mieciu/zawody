@@ -71,11 +71,14 @@ if S["etap"] == 1:
 
     with st.form("form_etap1"):
         liczba_zawodnikow = st.number_input(
-            "Liczba zawodników:", 1, 200, S["liczba_zawodnikow"])
+            "Liczba zawodników:", 1, 200, S.get("liczba_zawodnikow", 10)
+        )
         liczba_stanowisk = st.number_input(
-            "Liczba stanowisk na łowisku:", 1, 200, S["liczba_stanowisk"])
+            "Liczba stanowisk na łowisku:", 1, 200, S.get("liczba_stanowisk", 10)
+        )
         liczba_sektorow = st.number_input(
-            "Liczba sektorów:", 1, 20, S["liczba_sektorow"])
+            "Liczba sektorów:", 1, 20, S.get("liczba_sektorow", 3)
+        )
 
         submit = st.form_submit_button("➡️ Dalej – definiuj sektory")
         if submit:
@@ -92,8 +95,8 @@ if S["etap"] == 1:
 elif S["etap"] == 2:
     st.markdown("<h3 style='font-size:20px'>📍 Krok 2: Definicja sektorów</h3>", unsafe_allow_html=True)
 
-    zawodnicy = S["liczba_zawodnikow"]
-    sektory_n = S["liczba_sektorow"]
+    zawodnicy = S.get("liczba_zawodnikow", 10)
+    sektory_n = S.get("liczba_sektorow", 3)
     base = zawodnicy // sektory_n
     extra = zawodnicy % sektory_n
 
@@ -107,15 +110,22 @@ elif S["etap"] == 2:
             txt += f"✅ **Sektor {nazwa}: {base} zawodników**\n\n"
     st.info(txt)
 
+    # --- Formularz definiowania sektorów ---
     with st.form("form_etap2"):
         sektory = {}
         for i in range(sektory_n):
             nazwa = chr(65 + i)
+            key = f"sektor_{nazwa}"
+            # inicjalizacja session_state dla bezpiecznego użycia
+            if key not in st.session_state:
+                st.session_state[key] = S.get("sektory", {}).get(nazwa, [])
+            value_str = ",".join(map(str, st.session_state[key]))
             pola = st.text_input(
                 f"Sektor {nazwa} – podaj stanowiska (np. 1,2,3):",
-                value=",".join(map(str, S["sektory"].get(nazwa, []))),
-                key=f"sektor_{nazwa}"
+                value=value_str,
+                key=key
             )
+            # zapis do tymczasowego słownika
             if pola.strip():
                 lista = [int(x) for x in pola.split(",") if x.strip().isdigit()]
                 if lista:
@@ -123,9 +133,11 @@ elif S["etap"] == 2:
 
         submit_save = st.form_submit_button("💾 Zapisz sektory")
         if submit_save:
+            # walidacja: wszystkie sektory mają co najmniej jedno stanowisko
             if len(sektory) != sektory_n or any(len(v)==0 for v in sektory.values()):
                 st.error("Wszystkie sektory muszą mieć przynajmniej jedno stanowisko.")
             else:
+                # walidacja powtórzonych stanowisk
                 flat = sum(sektory.values(), [])
                 duplikaty = [x for x in flat if flat.count(x) > 1]
                 if duplikaty:
@@ -136,6 +148,7 @@ elif S["etap"] == 2:
                     save_state()
                     st.experimental_rerun()
 
+    # przycisk cofania poza formularzem
     if st.button("⬅️ Wstecz"):
         S["etap"] = 1
         save_state()
