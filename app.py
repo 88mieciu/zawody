@@ -101,21 +101,27 @@ elif S["etap"] == 2:
 
     st.markdown("<h3 style='font-size:20px'>📍 Krok 2: Definicja sektorów</h3>", unsafe_allow_html=True)
 
-    # ✅ Rekomendowana liczba stanowisk
+    # ✅ Wyliczenie rekomendacji
     zawodnicy = S["liczba_zawodnikow"]
     sektory_n = S["liczba_sektorow"]
 
     base = zawodnicy // sektory_n
     extra = zawodnicy % sektory_n
 
-    st.info("### Rekomendowane obciążenie sektorów:")
+    # ✅ INFORMACJA O STANOWISKACH — wyświetla się na pewno
+    st.markdown("### 🔢 Rekomendowana liczba stanowisk w sektorach:")
+
+    txt = ""
     for i in range(sektory_n):
         nazwa = chr(65 + i)
         if i < extra:
-            st.write(f"✅ **Sektor {nazwa}: {base + 1} stanowisk** (o 1 więcej)")
+            txt += f"✅ **Sektor {nazwa}: {base + 1} zawodników** (o 1 więcej)\n\n"
         else:
-            st.write(f"✅ **Sektor {nazwa}: {base} stanowisk**")
+            txt += f"✅ **Sektor {nazwa}: {base} zawodników**\n\n"
 
+    st.info(txt)
+
+    # ✅ Pola do wpisywania stanowisk
     sektory = {}
 
     for i in range(S["liczba_sektorow"]):
@@ -129,9 +135,9 @@ elif S["etap"] == 2:
             sektory[nazwa] = [int(x) for x in pola.split(",") if x.strip().isdigit()]
 
     col1, col2 = st.columns([1, 1])
+
     with col1:
         if st.button("💾 Zapisz sektory"):
-            # sprawdzamy duplikaty
             flat = sum(sektory.values(), [])
             duplikaty = [x for x in flat if flat.count(x) > 1]
 
