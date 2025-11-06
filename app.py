@@ -202,11 +202,18 @@ elif S["etap"] == 4:
 
         if st.button("🏆 Pokaż wyniki końcowe"):
             df = pd.DataFrame(S["zawodnicy"])
+            
+            # Ranking w sektorach
             df["miejsce_w_sektorze"] = df.groupby("sektor")["waga"].rank(ascending=False, method="min")
-            df_sorted = df.sort_values(by=["miejsce_w_sektorze","waga"], ascending=[True,False])
+            
+            # Ranking ogólny (wszystkie zawody)
+            df["miejsce_ogolne"] = df["waga"].rank(ascending=False, method="min")
+            
+            # Sortowanie po miejscu ogólnym i wadze
+            df_sorted = df.sort_values(by=["miejsce_ogolne","waga"], ascending=[True,False])
 
             st.markdown("<h4 style='font-size:18px'>📊 Ranking końcowy (wszyscy zawodnicy)</h4>", unsafe_allow_html=True)
-            st.dataframe(df_sorted[["imie","sektor","stanowisko","waga","miejsce_w_sektorze"]], hide_index=True)
+            st.dataframe(df_sorted[["miejsce_ogolne","imie","sektor","stanowisko","waga","miejsce_w_sektorze"]], hide_index=True)
 
             st.markdown("<h4 style='font-size:18px'>📌 Podsumowanie sektorów</h4>", unsafe_allow_html=True)
             for sektor, grupa in df_sorted.groupby("sektor"):
@@ -214,10 +221,11 @@ elif S["etap"] == 4:
                 tabela = grupa.sort_values(by="waga", ascending=False)[["imie","stanowisko","waga","miejsce_w_sektorze"]]
                 st.dataframe(tabela, hide_index=True)
 
+            # --- Eksport do TXT ---
             txt_lines = ["📊 Ranking końcowy (wszyscy zawodnicy):\n"]
-            txt_lines.append("Imię\tSektor\tStanowisko\tWaga\tMiejsce w sektorze")
+            txt_lines.append("Miejsce\tImię\tSektor\tStanowisko\tWaga\tMiejsce w sektorze")
             for _, row in df_sorted.iterrows():
-                txt_lines.append(f"{row['imie']}\t{row['sektor']}\t{row['stanowisko']}\t{row['waga']}\t{int(row['miejsce_w_sektorze'])}")
+                txt_lines.append(f"{int(row['miejsce_ogolne'])}\t{row['imie']}\t{row['sektor']}\t{row['stanowisko']}\t{row['waga']}\t{int(row['miejsce_w_sektorze'])}")
 
             txt_lines.append("\n📌 Podsumowanie sektorów:\n")
             for sektor, grupa in df_sorted.groupby("sektor"):
