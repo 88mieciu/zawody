@@ -67,7 +67,6 @@ with st.form("form_reset"):
 if S["etap"] == 1:
     st.markdown("<h3 style='font-size:20px'>⚙️ Krok 1: Ustawienia zawodów</h3>", unsafe_allow_html=True)
 
-    # Bezpieczne wartości domyślne
     liczba_zawodnikow_default = S.get("liczba_zawodnikow")
     if not isinstance(liczba_zawodnikow_default, int) or liczba_zawodnikow_default < 1:
         liczba_zawodnikow_default = 10
@@ -130,21 +129,15 @@ elif S["etap"] == 2:
             key = f"sektor_{nazwa}"
 
             # inicjalizacja w session_state
-            if key not in st.session_state or not isinstance(st.session_state[key], list):
+            if key not in st.session_state or not isinstance(st.session_state[key], str):
                 val = S.get("sektory", {}).get(nazwa, [])
-                if not isinstance(val, list):
-                    val = []
-                st.session_state[key] = val
-
-            value_list = st.session_state[key]
-            value_str = ",".join(str(x) for x in value_list) if value_list else ""
+                st.session_state[key] = ",".join(map(str, val)) if isinstance(val, list) else ""
 
             pola = st.text_input(
                 f"Sektor {nazwa} – podaj stanowiska (np. 1,2,3):",
-                value=value_str,
+                value=st.session_state[key],
                 key=key
             )
-
             if pola.strip():
                 lista = [int(x) for x in pola.split(",") if x.strip().isdigit()]
                 if lista:
@@ -164,10 +157,11 @@ elif S["etap"] == 2:
                     save_state()
                     st.experimental_rerun()
 
-    if st.button("⬅️ Wstecz"):
-        S["etap"] = 1
-        save_state()
-        st.experimental_rerun()
+    with st.form("form_wstecz2"):
+        if st.form_submit_button("⬅️ Wstecz"):
+            S["etap"] = 1
+            save_state()
+            st.experimental_rerun()
 
 # -----------------------------
 # ETAP 3 — Dodawanie zawodników
@@ -232,20 +226,13 @@ elif S["etap"] == 3:
                     save_state()
                     st.experimental_rerun()
 
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("⬅️ Wróć do sektorów"):
-            S["etap"] = 2
+    with st.form("form_przejdz4"):
+        if st.form_submit_button("➡️ Przejdź do wyników") and S["zawodnicy"]:
+            S["etap"] = 4
             save_state()
             st.experimental_rerun()
-    with col2:
-        if st.button("➡️ Przejdź do wyników"):
-            if S["zawodnicy"]:
-                S["etap"] = 4
-                save_state()
-                st.experimental_rerun()
-            else:
-                st.warning("Dodaj przynajmniej jednego zawodnika.")
+        elif st.form_submit_button("➡️ Przejdź do wyników") and not S["zawodnicy"]:
+            st.warning("Dodaj przynajmniej jednego zawodnika.")
 
 # -----------------------------
 # ETAP 4 — Wprowadzanie wyników + PDF
@@ -274,75 +261,3 @@ elif S["etap"] == 4:
                 )
                 z["waga"] = new_waga
                 save_state()
-
-        def export_to_pdf(df, sektory_grouped):
-            buffer = io.BytesIO()
-            c = canvas.Canvas(buffer, pagesize=A4)
-            width, height = A4
-            y = height - 40
-            c.setFont("Helvetica-Bold", 16)
-            c.drawString(50, y, "🎣 Wyniki zawodów wędkarskich")
-            y -= 30
-
-            # Ranking globalny
-            c.setFont("Helvetica-Bold", 14)
-            c.drawString(50, y, "📊 Ranking końcowy – wszyscy zawodnicy")
-            y -= 20
-            c.setFont("Helvetica", 12)
-            for i, row in df.iterrows():
-                text = f"{i+1}. {row['imie']} | Sektor: {row['sektor']} | Stan.: {row['stanowisko']} | Waga: {row['waga']}g | Miejsce w sektorze: {int(row['miejsce_w_sektorze'])}"
-                c.drawString(50, y, text)
-                y -= 15
-                if y < 50:
-                    c.showPage()
-                    y = height - 40
-
-            y -= 10
-            # Wyniki sektorów
-            c.setFont("Helvetica-Bold", 14)
-            c.drawString(50, y, "📌 Wyniki sektorów")
-            y -= 20
-            for sektor, grupa in sektory_grouped:
-                c.setFont("Helvetica-Bold", 12)
-                c.drawString(50, y, f"Sektor {sektor}")
-                y -= 15
-                c.setFont("Helvetica", 12)
-                for _, row in grupa.iterrows():
-                    text = f"{row['imie']} | Stan.: {row['stanowisko']} | Waga: {row['waga']}g | Miejsce w sektorze: {int(row['miejsce_w_sektorze'])}"
-                    c.drawString(50, y, text)
-                    y -= 15
-                    if y < 50:
-                        c.showPage()
-                        y = height - 40
-                y -= 10
-
-            c.showPage()
-            c.save()
-            buffer.seek(0)
-            return buffer
-
-        if st.button("🏆 Pokaż wyniki końcowe"):
-            df = pd.DataFrame(S["zawodnicy"])
-            df["miejsce_w_sektorze"] = df.groupby("sektor")["waga"].rank(ascending=False, method="min")
-            df_sorted = df.sort_values(by=["miejsce_w_sektorze","waga"], ascending=[True,False])
-
-            st.subheader("📊 Ranking końcowy – wszyscy zawodnicy")
-            st.dataframe(df_sorted, hide_index=True)
-
-            st.subheader("📌 Wyniki sektorów")
-            for sektor, grupa in df_sorted.groupby("sektor"):
-                st.write(f"**Sektor {sektor}**")
-                st.dataframe(grupa, hide_index=True)
-
-            pdf_file = export_to_pdf(df_sorted, df_sorted.groupby("sektor"))
-            st.download_button(
-                label="⬇️ Pobierz wyniki do PDF",
-                data=pdf_file,
-                file_name="wyniki_zawodow.pdf",
-                mime="application/pdf"
-            )
-
-        if st.button("⬅️ Wróć do zawodników"):
-            S["etap"] = 3
-            save_state()
-            st.experimental_rerun()
