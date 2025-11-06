@@ -20,6 +20,19 @@ def wczytaj_dane():
             return None
     return None
 
+# --- Funkcja resetu ---
+def reset_zawody():
+    st.session_state["S"] = {
+        "liczba_zawodnikow": 0,
+        "liczba_stanowisk": 0,
+        "liczba_sektorow": 0,
+        "sektory": {},
+        "zawodnicy": [],
+        "etap": 1
+    }
+    if os.path.exists(DATA_FILE):
+        os.remove(DATA_FILE)
+
 # --- Inicjalizacja stanu ---
 if "S" not in st.session_state:
     dane = wczytaj_dane()
@@ -41,18 +54,7 @@ st.set_page_config(page_title="Zawody wędkarskie", layout="wide")
 st.markdown("<h1 style='font-size:28px'>🎣 Panel organizatora zawodów wędkarskich by Wojtek Mierzejewski</h1>", unsafe_allow_html=True)
 
 # --- PRZYCISK RESET ---
-if st.button("🧹 Resetuj zawody"):
-    st.session_state["S"] = {
-        "liczba_zawodnikow": 0,
-        "liczba_stanowisk": 0,
-        "liczba_sektorow": 0,
-        "sektory": {},
-        "zawodnicy": [],
-        "etap": 1
-    }
-    if os.path.exists(DATA_FILE):
-        os.remove(DATA_FILE)
-    st.experimental_rerun()  # wymusza powrót do pierwszego etapu
+st.button("🧹 Resetuj zawody", on_click=reset_zawody)
 
 # --- ETAP 1: KONFIGURACJA ---
 if S["etap"] == 1:
