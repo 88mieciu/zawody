@@ -43,14 +43,6 @@ if "S" not in st.session_state:
 S = st.session_state["S"]
 
 # ---------------------------------------
-#  ✔️ Obsługa bezpiecznego rerun
-# ---------------------------------------
-if st.session_state.get("force_rerun"):
-    st.session_state["force_rerun"] = False
-    st.experimental_rerun()
-
-
-# ---------------------------------------
 #  🔝 Nagłówek
 # ---------------------------------------
 st.markdown("<h1 style='font-size:28px'>🎣 Panel organizatora zawodów wędkarskich by Wojtek Mierzejewski</h1>", unsafe_allow_html=True)
@@ -69,8 +61,7 @@ if st.button("🧹 Resetuj zawody"):
         "etap": 1
     }
     save_state()
-    st.session_state["force_rerun"] = True
-    st.stop()
+    st.experimental_rerun()
 
 
 # -------------------------------------------------------------------
@@ -92,6 +83,7 @@ if S["etap"] == 1:
     if st.button("➡️ Dalej – definiuj sektory"):
         S["etap"] = 2
         save_state()
+        st.experimental_rerun()
 
 
 # -------------------------------------------------------------------
@@ -101,14 +93,12 @@ elif S["etap"] == 2:
 
     st.markdown("<h3 style='font-size:20px'>📍 Krok 2: Definicja sektorów</h3>", unsafe_allow_html=True)
 
-    # ✅ Wyliczenie rekomendacji
     zawodnicy = S["liczba_zawodnikow"]
     sektory_n = S["liczba_sektorow"]
 
     base = zawodnicy // sektory_n
     extra = zawodnicy % sektory_n
 
-    # ✅ INFORMACJA O STANOWISKACH — wyświetla się na pewno
     st.markdown("### 🔢 Rekomendowana liczba stanowisk w sektorach:")
 
     txt = ""
@@ -121,7 +111,6 @@ elif S["etap"] == 2:
 
     st.info(txt)
 
-    # ✅ Pola do wpisywania stanowisk
     sektory = {}
 
     for i in range(S["liczba_sektorow"]):
@@ -147,11 +136,13 @@ elif S["etap"] == 2:
                 S["sektory"] = sektory
                 S["etap"] = 3
                 save_state()
+                st.experimental_rerun()
 
     with col2:
         if st.button("⬅️ Wstecz"):
             S["etap"] = 1
             save_state()
+            st.experimental_rerun()
 
 
 # -------------------------------------------------------------------
@@ -170,6 +161,7 @@ elif S["etap"] == 3:
         if st.button("✏️ Edytuj sektory"):
             S["etap"] = 2
             save_state()
+            st.experimental_rerun()
 
     with col2:
         if st.button("➡️ Przejdź do wprowadzenia wyników"):
@@ -178,6 +170,7 @@ elif S["etap"] == 3:
             else:
                 S["etap"] = 4
                 save_state()
+                st.experimental_rerun()
 
     wszystkie = sorted(sum(S["sektory"].values(), []))
     zajete = [z["stanowisko"] for z in S["zawodnicy"]]
@@ -197,10 +190,8 @@ elif S["etap"] == 3:
                     {"imie": imie.strip(), "stanowisko": stano, "sektor": sek, "waga": 0}
                 )
                 save_state()
-                st.session_state["force_rerun"] = True
-                st.stop()
+                st.experimental_rerun()
 
-    # --- Lista zawodników ---
     if S["zawodnicy"]:
         st.subheader("📋 Lista zawodników")
 
@@ -229,15 +220,11 @@ elif S["etap"] == 3:
                     z["stanowisko"] = new_stan
                     save_state()
 
-            with col3:
-                st.write(f"**{z['sektor']}**")
-
             with col4:
                 if st.button("🗑️ Usuń", key=f"del_{i}"):
                     del S["zawodnicy"][i]
                     save_state()
-                    st.session_state["force_rerun"] = True
-                    st.stop()
+                    st.experimental_rerun()
 
 
 # -------------------------------------------------------------------
@@ -252,6 +239,7 @@ elif S["etap"] == 4:
         if st.button("⬅️ Wróć"):
             S["etap"] = 3
             save_state()
+            st.experimental_rerun()
     else:
         for i, z in enumerate(S["zawodnicy"]):
             col1, col2 = st.columns([2, 1])
@@ -263,7 +251,6 @@ elif S["etap"] == 4:
                     z["waga"] = new_waga
                     save_state()
 
-        # ✅ Wyniki
         if st.button("🏆 Pokaż wyniki końcowe"):
             df = pd.DataFrame(S["zawodnicy"])
             df["miejsce_w_sektorze"] = df.groupby("sektor")["waga"].rank(ascending=False, method="min")
@@ -280,3 +267,4 @@ elif S["etap"] == 4:
         if st.button("⬅️ Wróć do zawodników"):
             S["etap"] = 3
             save_state()
+            st.experimental_rerun()
