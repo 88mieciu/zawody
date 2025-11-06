@@ -2,16 +2,17 @@ import streamlit as st
 import pandas as pd
 import json
 import os
-from fpdf import FPDF
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4
 import io
 
 st.set_page_config(page_title="Zawody wędkarskie", layout="wide")
 
 SAVE_FILE = "zawody_state.json"
 
-# ---------------------------------------
-#  🔄 FUNKCJE ZAPISU / ODCZYTU STANU
-# ---------------------------------------
+# -----------------------------
+# Funkcje zapisu/odczytu stanu
+# -----------------------------
 def load_state():
     if os.path.exists(SAVE_FILE):
         try:
@@ -21,15 +22,13 @@ def load_state():
             return None
     return None
 
-
 def save_state():
     with open(SAVE_FILE, "w", encoding="utf-8") as f:
         json.dump(st.session_state["S"], f, ensure_ascii=False, indent=2)
 
-
-# ---------------------------------------
-#  🧠 Inicjalizacja stanu
-# ---------------------------------------
+# -----------------------------
+# Inicjalizacja stanu
+# -----------------------------
 loaded = load_state()
 
 if "S" not in st.session_state:
@@ -44,15 +43,14 @@ if "S" not in st.session_state:
 
 S = st.session_state["S"]
 
-# ---------------------------------------
-#  🔝 Nagłówek
-# ---------------------------------------
-st.markdown("<h1 style='font-size:28px'>🎣 Panel organizatora zawodów wędkarskich by Wojtek Mierzejewski</h1>", unsafe_allow_html=True)
+# -----------------------------
+# Nagłówek
+# -----------------------------
+st.markdown("<h1 style='font-size:28px'>🎣 Panel organizatora zawodów wędkarskich</h1>", unsafe_allow_html=True)
 
-
-# ---------------------------------------
-#  🧹 RESET
-# ---------------------------------------
+# -----------------------------
+# Reset zawodów
+# -----------------------------
 if st.button("🧹 Resetuj zawody"):
     st.session_state["S"] = {
         "liczba_zawodnikow": 0,
@@ -65,10 +63,9 @@ if st.button("🧹 Resetuj zawody"):
     save_state()
     st.experimental_rerun()
 
-
-# -------------------------------------------------------------------
-#  ✅ ETAP 1 — KONFIGURACJA ZAWODÓW
-# -------------------------------------------------------------------
+# -----------------------------
+# ETAP 1 — Konfiguracja zawodów
+# -----------------------------
 if S["etap"] == 1:
 
     st.markdown("<h3 style='font-size:20px'>⚙️ Krok 1: Ustawienia zawodów</h3>", unsafe_allow_html=True)
@@ -87,10 +84,9 @@ if S["etap"] == 1:
         save_state()
         st.experimental_rerun()
 
-
-# -------------------------------------------------------------------
-#  ✅ ETAP 2 — DEFINICJA SEKTORÓW
-# -------------------------------------------------------------------
+# -----------------------------
+# ETAP 2 — Definicja sektorów
+# -----------------------------
 elif S["etap"] == 2:
 
     st.markdown("<h3 style='font-size:20px'>📍 Krok 2: Definicja sektorów</h3>", unsafe_allow_html=True)
@@ -110,11 +106,9 @@ elif S["etap"] == 2:
             txt += f"✅ **Sektor {nazwa}: {base + 1} zawodników** (o 1 więcej)\n\n"
         else:
             txt += f"✅ **Sektor {nazwa}: {base} zawodników**\n\n"
-
     st.info(txt)
 
     sektory = {}
-
     for i in range(S["liczba_sektorow"]):
         nazwa = chr(65 + i)
         pola = st.text_input(
@@ -125,13 +119,11 @@ elif S["etap"] == 2:
         if pola.strip():
             sektory[nazwa] = [int(x) for x in pola.split(",") if x.strip().isdigit()]
 
-    col1, col2 = st.columns([1, 1])
-
+    col1, col2 = st.columns([1,1])
     with col1:
         if st.button("💾 Zapisz sektory"):
             flat = sum(sektory.values(), [])
             duplikaty = [x for x in flat if flat.count(x) > 1]
-
             if duplikaty:
                 st.error(f"Powtórzone stanowiska: {sorted(set(duplikaty))}")
             else:
@@ -139,17 +131,15 @@ elif S["etap"] == 2:
                 S["etap"] = 3
                 save_state()
                 st.experimental_rerun()
-
     with col2:
         if st.button("⬅️ Wstecz"):
             S["etap"] = 1
             save_state()
             st.experimental_rerun()
 
-
-# -------------------------------------------------------------------
-#  ✅ ETAP 3 — DODAWANIE ZAWODNIKÓW
-# -------------------------------------------------------------------
+# -----------------------------
+# ETAP 3 — Dodawanie zawodników
+# -----------------------------
 elif S["etap"] == 3:
 
     st.markdown("<h3 style='font-size:20px'>👤 Krok 3: Dodawanie zawodników</h3>", unsafe_allow_html=True)
@@ -164,7 +154,6 @@ elif S["etap"] == 3:
             S["etap"] = 2
             save_state()
             st.experimental_rerun()
-
     with col2:
         if st.button("➡️ Przejdź do wprowadzenia wyników"):
             if len(S["zawodnicy"]) == 0:
@@ -179,12 +168,11 @@ elif S["etap"] == 3:
     dostepne = [s for s in wszystkie if s not in zajete]
 
     if dostepne:
-        col1, col2 = st.columns([2, 1])
+        col1, col2 = st.columns([2,1])
         with col1:
             imie = st.text_input("Imię i nazwisko zawodnika:", key="new_name")
         with col2:
             stano = st.selectbox("Stanowisko", dostepne, key="new_stanowisko")
-
         if st.button("➕ Dodaj zawodnika"):
             if imie.strip():
                 sek = next(k for k, v in S["sektory"].items() if stano in v)
@@ -194,54 +182,41 @@ elif S["etap"] == 3:
                 save_state()
                 st.experimental_rerun()
 
-    # Inicjalizacja zmiennej do usuwania
     if "del_index" not in st.session_state:
         st.session_state["del_index"] = None
 
-    # Lista zawodników
     if S["zawodnicy"]:
         st.subheader("📋 Lista zawodników")
-
         for i, z in enumerate(S["zawodnicy"]):
-            col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
-
+            col1, col2, col3, col4 = st.columns([2,1,1,1])
             with col1:
                 new_name = st.text_input(f"Zawodnik {i+1}", z["imie"], key=f"imie_{i}")
                 if new_name != z["imie"]:
                     z["imie"] = new_name
                     save_state()
-
             with col2:
                 wszystkie = sorted(sum(S["sektory"].values(), []))
                 zajete = [x["stanowisko"] for j, x in enumerate(S["zawodnicy"]) if j != i]
                 dostepne = [s for s in wszystkie if s not in zajete or s == z["stanowisko"]]
                 if z["stanowisko"] not in dostepne:
                     dostepne.append(z["stanowisko"])
-                try:
-                    idx = dostepne.index(z["stanowisko"])
-                except:
-                    idx = 0
-
+                idx = dostepne.index(z["stanowisko"]) if z["stanowisko"] in dostepne else 0
                 new_stan = st.selectbox("Stan.", dostepne, index=idx, key=f"stan_{i}")
                 if new_stan != z["stanowisko"]:
                     z["stanowisko"] = new_stan
                     save_state()
-
             with col4:
                 if st.button("🗑️ Usuń", key=f"del_{i}"):
                     st.session_state["del_index"] = i
-
-    # Usuwanie zawodnika po pętli
     if st.session_state["del_index"] is not None:
         del S["zawodnicy"][st.session_state["del_index"]]
         st.session_state["del_index"] = None
         save_state()
         st.experimental_rerun()
 
-
-# -------------------------------------------------------------------
-#  ✅ ETAP 4 — WPROWADZANIE WAG + WYNIKI
-# -------------------------------------------------------------------
+# -----------------------------
+# ETAP 4 — Wprowadzanie wyników + PDF
+# -----------------------------
 elif S["etap"] == 4:
 
     st.markdown("<h3 style='font-size:20px'>⚖️ Krok 4: Wprowadzenie wyników</h3>", unsafe_allow_html=True)
@@ -254,7 +229,7 @@ elif S["etap"] == 4:
             st.experimental_rerun()
     else:
         for i, z in enumerate(S["zawodnicy"]):
-            col1, col2 = st.columns([2, 1])
+            col1, col2 = st.columns([2,1])
             with col1:
                 st.write(f"**{z['imie']}** ({z['sektor']}, st. {z['stanowisko']})")
             with col2:
@@ -264,44 +239,55 @@ elif S["etap"] == 4:
                     save_state()
 
         def export_to_pdf(df, sektory_grouped):
-            pdf = FPDF()
-            pdf.set_auto_page_break(auto=True, margin=15)
-            pdf.add_page()
-            pdf.set_font("Arial", "B", 16)
-            pdf.cell(0, 10, "🎣 Wyniki zawodów wędkarskich", ln=True, align="C")
-            pdf.ln(5)
+            buffer = io.BytesIO()
+            c = canvas.Canvas(buffer, pagesize=A4)
+            width, height = A4
+            y = height - 40
+            c.setFont("Helvetica-Bold", 16)
+            c.drawString(50, y, "🎣 Wyniki zawodów wędkarskich")
+            y -= 30
 
             # Ranking globalny
-            pdf.set_font("Arial", "B", 14)
-            pdf.cell(0, 10, "📊 Ranking końcowy – wszyscy zawodnicy", ln=True)
-            pdf.set_font("Arial", "", 12)
-            pdf.ln(2)
+            c.setFont("Helvetica-Bold", 14)
+            c.drawString(50, y, "📊 Ranking końcowy – wszyscy zawodnicy")
+            y -= 20
+            c.setFont("Helvetica", 12)
             for i, row in df.iterrows():
-                pdf.cell(0, 6, f"{i+1}. {row['imie']} | Sektor: {row['sektor']} | Stanowisko: {row['stanowisko']} | Waga: {row['waga']}g | Miejsce w sektorze: {int(row['miejsce_w_sektorze'])}", ln=True)
-            pdf.ln(5)
+                text = f"{i+1}. {row['imie']} | Sektor: {row['sektor']} | Stan.: {row['stanowisko']} | Waga: {row['waga']}g | Miejsce w sektorze: {int(row['miejsce_w_sektorze'])}"
+                c.drawString(50, y, text)
+                y -= 15
+                if y < 50:
+                    c.showPage()
+                    y = height - 40
 
+            y -= 10
             # Wyniki sektorów
-            pdf.set_font("Arial", "B", 14)
-            pdf.cell(0, 10, "📌 Wyniki sektorów", ln=True)
-            pdf.set_font("Arial", "", 12)
-            pdf.ln(2)
+            c.setFont("Helvetica-Bold", 14)
+            c.drawString(50, y, "📌 Wyniki sektorów")
+            y -= 20
             for sektor, grupa in sektory_grouped:
-                pdf.set_font("Arial", "B", 12)
-                pdf.cell(0, 8, f"Sektor {sektor}", ln=True)
-                pdf.set_font("Arial", "", 12)
+                c.setFont("Helvetica-Bold", 12)
+                c.drawString(50, y, f"Sektor {sektor}")
+                y -= 15
+                c.setFont("Helvetica", 12)
                 for _, row in grupa.iterrows():
-                    pdf.cell(0, 6, f"{row['imie']} | Stanowisko: {row['stanowisko']} | Waga: {row['waga']}g | Miejsce w sektorze: {int(row['miejsce_w_sektorze'])}", ln=True)
-                pdf.ln(3)
+                    text = f"{row['imie']} | Stan.: {row['stanowisko']} | Waga: {row['waga']}g | Miejsce w sektorze: {int(row['miejsce_w_sektorze'])}"
+                    c.drawString(50, y, text)
+                    y -= 15
+                    if y < 50:
+                        c.showPage()
+                        y = height - 40
+                y -= 10
 
-            pdf_buffer = io.BytesIO()
-            pdf.output(pdf_buffer)
-            pdf_buffer.seek(0)
-            return pdf_buffer
+            c.showPage()
+            c.save()
+            buffer.seek(0)
+            return buffer
 
         if st.button("🏆 Pokaż wyniki końcowe"):
             df = pd.DataFrame(S["zawodnicy"])
             df["miejsce_w_sektorze"] = df.groupby("sektor")["waga"].rank(ascending=False, method="min")
-            df_sorted = df.sort_values(by=["miejsce_w_sektorze", "waga"], ascending=[True, False])
+            df_sorted = df.sort_values(by=["miejsce_w_sektorze","waga"], ascending=[True,False])
 
             st.subheader("📊 Ranking końcowy – wszyscy zawodnicy")
             st.dataframe(df_sorted, hide_index=True)
@@ -311,7 +297,6 @@ elif S["etap"] == 4:
                 st.write(f"**Sektor {sektor}**")
                 st.dataframe(grupa, hide_index=True)
 
-            # Eksport PDF
             pdf_file = export_to_pdf(df_sorted, df_sorted.groupby("sektor"))
             st.download_button(
                 label="⬇️ Pobierz wyniki do PDF",
