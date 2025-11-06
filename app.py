@@ -141,7 +141,7 @@ if "S" not in st.session_state:
 S = st.session_state["S"]
 
 st.set_page_config(page_title="Zawody wędkarskie", layout="wide")
-st.markdown("<h1 style='font-size:28px'>🎣 Panel organizatora zawodów wędkarskich by Wojtek Mierzejewski</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='font-size:26px'>🎣🏆 Panel organizatora zawodów wędkarskich by Wojtek Mierzejewski 2025 🏆🎣</h1>", unsafe_allow_html=True)
 
 # --- PRZYCISK RESET ---
 st.button("🧹 Resetuj zawody", on_click=reset_zawody)
@@ -287,7 +287,7 @@ elif S["etap"] == 4:
             with col1:
                 st.write(f"**{z['imie']}** ({z['sektor']}, st. {z['stanowisko']})")
             with col2:
-                z["waga"] = st.number_input("Waga (g)", 0, 100000, z["waga"], step=10, key=f"waga_{i}")
+                z["waga"] = st.number_input("Waga (g)", 0, 1000000, z["waga"], step=10, key=f"waga_{i}")
         zapisz_dane(S)
 
         df = pd.DataFrame(S["zawodnicy"])
