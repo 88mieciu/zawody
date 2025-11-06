@@ -142,7 +142,7 @@ elif S["etap"] == 2:
         st.experimental_rerun()
 
 # -----------------------------
-# ETAP 3 — Dodawanie zawodników
+# ETAP 3 — Dodawanie i usuwanie zawodników
 # -----------------------------
 elif S["etap"] == 3:
     st.markdown("<h3 style='font-size:20px'>👤 Krok 3: Dodawanie zawodników</h3>", unsafe_allow_html=True)
@@ -155,13 +155,14 @@ elif S["etap"] == 3:
     zajete = [z["stanowisko"] for z in S["zawodnicy"]]
     dostepne = [s for s in wszystkie if s not in zajete]
 
-    # inicjalizacja kluczy session_state dla wag
+    # Inicjalizacja kluczy session_state dla wag
     for i, z in enumerate(S["zawodnicy"]):
         key = f"waga_{i}"
         if key not in st.session_state:
             st.session_state[key] = z.get("waga", 0)
 
-    with st.form("form_etap3"):
+    # --- Formularz dodawania zawodnika ---
+    with st.form("form_dodaj_zawodnika"):
         imie = st.text_input("Imię i nazwisko zawodnika:", key="new_name")
         stano = st.selectbox("Stanowisko", dostepne, key="new_stanowisko")
         submit_add = st.form_submit_button("➕ Dodaj zawodnika")
@@ -169,25 +170,67 @@ elif S["etap"] == 3:
             if imie.strip():
                 sek = next((k for k, v in S["sektory"].items() if stano in v), None)
                 if sek:
-                    S["zawodnicy"].append({"imie": imie.strip(), "stanowisko": stano, "sektor": sek, "waga":0})
+                    S["zawodnicy"].append({
+                        "imie": imie.strip(),
+                        "stanowisko": stano,
+                        "sektor": sek,
+                        "waga": 0
+                    })
                     save_state()
                     st.experimental_rerun()
                 else:
                     st.error("Wybrane stanowisko nie należy do żadnego sektora!")
 
-    if st.button("⬅️ Wróć do sektorów"):
-        S["etap"] = 2
-        save_state()
-        st.experimental_rerun()
+    # --- Lista zawodników z możliwością edycji i usuwania ---
+    if S["zawodnicy"]:
+        st.subheader("📋 Lista zawodników")
+        for i, z in enumerate(S["zawodnicy"]):
+            col1, col2, col3 = st.columns([3,1,1])
+            key_waga = f"waga_{i}"
 
-    if st.button("➡️ Przejdź do wyników"):
-        if len(S["zawodnicy"]) > 0:
-            S["etap"] = 4
+            with col1:
+                new_name = st.text_input(f"Zawodnik {i+1}", z["imie"], key=f"imie_{i}")
+                if new_name != z["imie"]:
+                    z["imie"] = new_name
+                    save_state()
+
+            with col2:
+                # dostępne stanowiska do zmiany
+                zajete_inne = [x["stanowisko"] for j, x in enumerate(S["zawodnicy"]) if j != i]
+                dostepne_stan = [s for s in wszystkie if s not in zajete_inne or s == z["stanowisko"]]
+                idx = dostepne_stan.index(z["stanowisko"]) if z["stanowisko"] in dostepne_stan else 0
+                new_stan = st.selectbox("Stan.", dostepne_stan, index=idx, key=f"stan_{i}")
+                if new_stan != z["stanowisko"]:
+                    z["stanowisko"] = new_stan
+                    # aktualizacja sektora po zmianie stanowiska
+                    z["sektor"] = next(k for k,v in S["sektory"].items() if new_stan in v)
+                    save_state()
+
+            with col3:
+                if st.button("🗑️ Usuń", key=f"del_{i}"):
+                    del S["zawodnicy"][i]
+                    # usuń powiązany klucz w session_state
+                    waga_key = f"waga_{i}"
+                    if waga_key in st.session_state:
+                        del st.session_state[waga_key]
+                    save_state()
+                    st.experimental_rerun()
+
+    # --- Nawigacja do innych etapów ---
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("⬅️ Wróć do sektorów"):
+            S["etap"] = 2
             save_state()
             st.experimental_rerun()
-        else:
-            st.warning("Dodaj przynajmniej jednego zawodnika.")
-
+    with col2:
+        if st.button("➡️ Przejdź do wyników"):
+            if S["zawodnicy"]:
+                S["etap"] = 4
+                save_state()
+                st.experimental_rerun()
+            else:
+                st.warning("Dodaj przynajmniej jednego zawodnika.")
 # -----------------------------
 # ETAP 4 — Wprowadzanie wyników + PDF
 # -----------------------------
