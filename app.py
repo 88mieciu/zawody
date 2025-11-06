@@ -31,9 +31,9 @@ def save_state():
 loaded = load_state()
 if "S" not in st.session_state:
     st.session_state["S"] = loaded if loaded else {
-        "liczba_zawodnikow": 0,
-        "liczba_stanowisk": 0,
-        "liczba_sektorow": 0,
+        "liczba_zawodnikow": 10,
+        "liczba_stanowisk": 10,
+        "liczba_sektorow": 3,
         "sektory": {},
         "zawodnicy": [],
         "etap": 1
@@ -48,17 +48,18 @@ st.markdown("<h1 style='font-size:28px'>🎣 Panel organizatora zawodów wędkar
 # -----------------------------
 # Reset zawodów
 # -----------------------------
-if st.button("🧹 Resetuj zawody"):
-    st.session_state["S"] = {
-        "liczba_zawodnikow": 0,
-        "liczba_stanowisk": 0,
-        "liczba_sektorow": 0,
-        "sektory": {},
-        "zawodnicy": [],
-        "etap": 1
-    }
-    save_state()
-    st.experimental_rerun()
+with st.form("form_reset"):
+    if st.form_submit_button("🧹 Resetuj zawody"):
+        st.session_state["S"] = {
+            "liczba_zawodnikow": 10,
+            "liczba_stanowisk": 10,
+            "liczba_sektorow": 3,
+            "sektory": {},
+            "zawodnicy": [],
+            "etap": 1
+        }
+        save_state()
+        st.experimental_rerun()
 
 # -----------------------------
 # ETAP 1 — Konfiguracja zawodów
@@ -66,32 +67,21 @@ if st.button("🧹 Resetuj zawody"):
 if S["etap"] == 1:
     st.markdown("<h3 style='font-size:20px'>⚙️ Krok 1: Ustawienia zawodów</h3>", unsafe_allow_html=True)
 
-    # bezpieczne wartości domyślne
-    default_liczba_zawodnikow = S.get("liczba_zawodnikow", 0)
-    if not isinstance(default_liczba_zawodnikow, int) or default_liczba_zawodnikow < 1:
-        default_liczba_zawodnikow = 10
-
-    default_liczba_stanowisk = S.get("liczba_stanowisk", 0)
-    if not isinstance(default_liczba_stanowisk, int) or default_liczba_stanowisk < 1:
-        default_liczba_stanowisk = 10
-
-    default_liczba_sektorow = S.get("liczba_sektorow", 0)
-    if not isinstance(default_liczba_sektorow, int) or default_liczba_sektorow < 1:
-        default_liczba_sektorow = 3
-
     with st.form("form_etap1"):
         liczba_zawodnikow = st.number_input(
-            "Liczba zawodników:", min_value=1, max_value=200, value=default_liczba_zawodnikow
+            "Liczba zawodników:", min_value=1, max_value=200,
+            value=S.get("liczba_zawodnikow", 10)
         )
         liczba_stanowisk = st.number_input(
-            "Liczba stanowisk:", min_value=1, max_value=200, value=default_liczba_stanowisk
+            "Liczba stanowisk:", min_value=1, max_value=200,
+            value=S.get("liczba_stanowisk", 10)
         )
         liczba_sektorow = st.number_input(
-            "Liczba sektorów:", min_value=1, max_value=20, value=default_liczba_sektorow
+            "Liczba sektorów:", min_value=1, max_value=20,
+            value=S.get("liczba_sektorow", 3)
         )
 
-        submit = st.form_submit_button("➡️ Dalej – definiuj sektory")
-        if submit:
+        if st.form_submit_button("➡️ Dalej – definiuj sektory"):
             S["liczba_zawodnikow"] = liczba_zawodnikow
             S["liczba_stanowisk"] = liczba_stanowisk
             S["liczba_sektorow"] = liczba_sektorow
@@ -126,14 +116,14 @@ elif S["etap"] == 2:
             nazwa = chr(65 + i)
             key = f"sektor_{nazwa}"
 
-            # gwarancja, że st.session_state[key] jest listą
+            # inicjalizacja w session_state
             if key not in st.session_state or not isinstance(st.session_state[key], list):
                 val = S.get("sektory", {}).get(nazwa, [])
                 if not isinstance(val, list):
                     val = []
                 st.session_state[key] = val
 
-            # zawsze string
+            # konwersja na string
             value_list = st.session_state[key]
             value_str = ",".join(str(x) for x in value_list) if value_list else ""
 
@@ -143,14 +133,13 @@ elif S["etap"] == 2:
                 key=key
             )
 
-            # konwersja inputu na listę liczb
+            # zapis do słownika sektory
             if pola.strip():
                 lista = [int(x) for x in pola.split(",") if x.strip().isdigit()]
                 if lista:
                     sektory[nazwa] = lista
 
-        submit_save = st.form_submit_button("💾 Zapisz sektory")
-        if submit_save:
+        if st.form_submit_button("💾 Zapisz sektory"):
             if len(sektory) != sektory_n or any(len(v)==0 for v in sektory.values()):
                 st.error("Wszystkie sektory muszą mieć przynajmniej jedno stanowisko.")
             else:
@@ -183,16 +172,10 @@ elif S["etap"] == 3:
     zajete = [z["stanowisko"] for z in S["zawodnicy"]]
     dostepne = [s for s in wszystkie if s not in zajete]
 
-    for i, z in enumerate(S["zawodnicy"]):
-        key_waga = f"waga_{i}"
-        if key_waga not in st.session_state:
-            st.session_state[key_waga] = z.get("waga", 0)
-
     with st.form("form_dodaj_zawodnika"):
         imie = st.text_input("Imię i nazwisko zawodnika:", key="new_name")
         stano = st.selectbox("Stanowisko", dostepne, key="new_stanowisko")
-        submit_add = st.form_submit_button("➕ Dodaj zawodnika")
-        if submit_add and imie.strip():
+        if st.form_submit_button("➕ Dodaj zawodnika") and imie.strip():
             sek = next((k for k, v in S["sektory"].items() if stano in v), None)
             if sek:
                 S["zawodnicy"].append({
@@ -211,6 +194,8 @@ elif S["etap"] == 3:
         for i, z in enumerate(S["zawodnicy"]):
             col1, col2, col3 = st.columns([3,1,1])
             key_waga = f"waga_{i}"
+            if key_waga not in st.session_state:
+                st.session_state[key_waga] = z.get("waga", 0)
 
             with col1:
                 new_name = st.text_input(f"Zawodnik {i+1}", z["imie"], key=f"imie_{i}")
