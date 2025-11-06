@@ -3,21 +3,15 @@ import pandas as pd
 import json
 import os
 import io
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.lib.pagesizes import A4
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-from reportlab.lib import colors
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
 # --- Ścieżka do pliku przechowującego dane ---
 DATA_FILE = "zawody_data.json"
-FONT_PATH = "DejaVuSans.ttf"  # Ścieżka do czcionki obsługującej polskie znaki
-
-# --- Rejestracja czcionki ---
-if not os.path.exists(FONT_PATH):
-    raise FileNotFoundError("Brakuje pliku czcionki DejaVuSans.ttf w katalogu aplikacji.")
-pdfmetrics.registerFont(TTFont('DejaVu', FONT_PATH))
 
 # --- Funkcje pomocnicze ---
 def zapisz_dane(S):
@@ -50,21 +44,22 @@ def generuj_pdf_reportlab(df_sorted, nazwa_zawodow=""):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4)
     elements = []
-
-    # --- Style ---
     styles = getSampleStyleSheet()
-    styles.add(ParagraphStyle(name='MyHeading1', fontName='DejaVu', fontSize=18, leading=22))
-    styles.add(ParagraphStyle(name='MyHeading2', fontName='DejaVu', fontSize=14, leading=18))
-    styles.add(ParagraphStyle(name='MyHeading3', fontName='DejaVu', fontSize=12, leading=16))
-    normal_style = ParagraphStyle(name='NormalDejaVu', fontName='DejaVu', fontSize=10, leading=12)
+
+    # --- Rejestracja czcionki obsługującej polskie znaki ---
+    pdfmetrics.registerFont(TTFont('DejaVu', 'DejaVuSans.ttf'))
+    styles['Normal'].fontName = 'DejaVu'
+    styles['Heading1'].fontName = 'DejaVu'
+    styles['Heading2'].fontName = 'DejaVu'
+    styles['Heading3'].fontName = 'DejaVu'
 
     # --- Nagłówek z nazwą zawodów ---
     if nazwa_zawodow:
-        elements.append(Paragraph(f"🏆 {nazwa_zawodow}", styles['MyHeading1']))
+        elements.append(Paragraph(f"🏆 {nazwa_zawodow}", styles['Heading1']))
         elements.append(Spacer(1, 15))
 
     # --- Ranking ogólny ---
-    elements.append(Paragraph("📊 Ranking końcowy (wszyscy zawodnicy)", styles['MyHeading2']))
+    elements.append(Paragraph("📊 Ranking końcowy (wszyscy zawodnicy)", styles['Heading2']))
     elements.append(Spacer(1, 10))
     data = [["Miejsce", "Imię", "Sektor", "Stanowisko", "Waga", "Miejsce w sektorze"]]
     for _, row in df_sorted.iterrows():
@@ -78,23 +73,19 @@ def generuj_pdf_reportlab(df_sorted, nazwa_zawodow=""):
         ])
     t = Table(data, repeatRows=1)
     t.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.grey),
-        ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
-        ('FONTNAME', (0,0), (-1,0), 'DejaVu'),
-        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+        ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
         ('GRID', (0,0), (-1,-1), 0.5, colors.black),
+        ('FONTNAME', (0,0), (-1,-1), 'DejaVu'),
+        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
     ]))
-    for i in range(1, len(data)):
-        if i % 2 == 0:
-            t.setStyle(TableStyle([('BACKGROUND', (0,i), (-1,i), colors.lightgrey)]))
     elements.append(t)
     elements.append(Spacer(1, 20))
 
     # --- Podsumowanie sektorów ---
-    elements.append(Paragraph("📌 Podsumowanie sektorów", styles['MyHeading2']))
+    elements.append(Paragraph("📌 Podsumowanie sektorów", styles['Heading2']))
     elements.append(Spacer(1, 10))
     for sektor, grupa in df_sorted.groupby("sektor"):
-        elements.append(Paragraph(f"Sektor {sektor}", styles['MyHeading3']))
+        elements.append(Paragraph(f"Sektor {sektor}", styles['Heading3']))
         data = [["Imię", "Stanowisko", "Waga", "Miejsce w sektorze", "Miejsce ogólne"]]
         for _, row in grupa.sort_values(by="waga", ascending=False).iterrows():
             data.append([
@@ -106,15 +97,11 @@ def generuj_pdf_reportlab(df_sorted, nazwa_zawodow=""):
             ])
         t = Table(data, repeatRows=1)
         t.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,0), colors.grey),
-            ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
-            ('FONTNAME', (0,0), (-1,0), 'DejaVu'),
-            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+            ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
             ('GRID', (0,0), (-1,-1), 0.5, colors.black),
+            ('FONTNAME', (0,0), (-1,-1), 'DejaVu'),
+            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
         ]))
-        for i in range(1, len(data)):
-            if i % 2 == 0:
-                t.setStyle(TableStyle([('BACKGROUND', (0,i), (-1,i), colors.lightgrey)]))
         elements.append(t)
         elements.append(Spacer(1, 15))
 
@@ -141,7 +128,7 @@ if "S" not in st.session_state:
 S = st.session_state["S"]
 
 st.set_page_config(page_title="Zawody wędkarskie", layout="wide")
-st.markdown("<h1 style='font-size:26px'>🎣🏆 Panel organizatora zawodów wędkarskich by Wojtek Mierzejewski 2025 🏆🎣</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='font-size:28px'>🎣 Panel organizatora zawodów wędkarskich by Wojtek Mierzejewski</h1>", unsafe_allow_html=True)
 
 # --- PRZYCISK RESET ---
 st.button("🧹 Resetuj zawody", on_click=reset_zawody)
@@ -272,7 +259,7 @@ elif S["etap"] == 3:
                     zapisz_dane(S)
                     st.experimental_rerun()
 
-# --- ETAP 4: WPROWADZANIE WYNIKÓW I PODSUMOWANIE ---
+# --- ETAP 4: WPROWADZANIE WYNIKÓW I PODSUMOWANIE W TABELCE ---
 elif S["etap"] == 4:
     st.markdown("<h3 style='font-size:20px'>⚖️ Krok 4: Wprowadzenie wyników (waga ryb)</h3>", unsafe_allow_html=True)
 
@@ -282,14 +269,19 @@ elif S["etap"] == 4:
             S["etap"] = 3
             zapisz_dane(S)
     else:
-        for i,z in enumerate(S["zawodnicy"]):
-            col1, col2 = st.columns([2,1])
-            with col1:
-                st.write(f"**{z['imie']}** ({z['sektor']}, st. {z['stanowisko']})")
-            with col2:
-                z["waga"] = st.number_input("Waga (g)", 0, 1000000, z["waga"], step=10, key=f"waga_{i}")
+        # --- Przygotowanie danych do edycji ---
+        df_edit = pd.DataFrame(S["zawodnicy"])
+        df_edit = df_edit[["imie","sektor","stanowisko","waga"]]
+
+        # --- Edytowalna tabelka ---
+        df_edited = st.data_editor(df_edit, num_rows="dynamic")
+
+        # --- Aktualizacja wag w sesji ---
+        for i, row in df_edited.iterrows():
+            S["zawodnicy"][i]["waga"] = int(row["waga"])
         zapisz_dane(S)
 
+        # --- Obliczenia miejsc w sektorze ---
         df = pd.DataFrame(S["zawodnicy"])
         df["miejsce_w_sektorze"] = df.groupby("sektor")["waga"].rank(ascending=False, method="min")
 
