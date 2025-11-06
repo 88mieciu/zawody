@@ -2,14 +2,22 @@ import streamlit as st
 import pandas as pd
 import json
 import os
-from reportlab.lib.pagesizes import A4
-from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet
 import io
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.lib.pagesizes import A4
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
 # --- Ścieżka do pliku przechowującego dane ---
 DATA_FILE = "zawody_data.json"
+FONT_PATH = "DejaVuSans.ttf"  # Ścieżka do czcionki obsługującej polskie znaki
+
+# --- Rejestracja czcionki ---
+if not os.path.exists(FONT_PATH):
+    raise FileNotFoundError("Brakuje pliku czcionki DejaVuSans.ttf w katalogu aplikacji.")
+pdfmetrics.registerFont(TTFont('DejaVu', FONT_PATH))
 
 # --- Funkcje pomocnicze ---
 def zapisz_dane(S):
@@ -42,15 +50,21 @@ def generuj_pdf_reportlab(df_sorted, nazwa_zawodow=""):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4)
     elements = []
+
+    # --- Style ---
     styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(name='MyHeading1', fontName='DejaVu', fontSize=18, leading=22))
+    styles.add(ParagraphStyle(name='MyHeading2', fontName='DejaVu', fontSize=14, leading=18))
+    styles.add(ParagraphStyle(name='MyHeading3', fontName='DejaVu', fontSize=12, leading=16))
+    normal_style = ParagraphStyle(name='NormalDejaVu', fontName='DejaVu', fontSize=10, leading=12)
 
     # --- Nagłówek z nazwą zawodów ---
     if nazwa_zawodow:
-        elements.append(Paragraph(f"🏆 {nazwa_zawodow}", styles['Heading1']))
+        elements.append(Paragraph(f"🏆 {nazwa_zawodow}", styles['MyHeading1']))
         elements.append(Spacer(1, 15))
 
     # --- Ranking ogólny ---
-    elements.append(Paragraph("📊 Ranking końcowy (wszyscy zawodnicy)", styles['Heading2']))
+    elements.append(Paragraph("📊 Ranking końcowy (wszyscy zawodnicy)", styles['MyHeading2']))
     elements.append(Spacer(1, 10))
     data = [["Miejsce", "Imię", "Sektor", "Stanowisko", "Waga", "Miejsce w sektorze"]]
     for _, row in df_sorted.iterrows():
@@ -64,19 +78,23 @@ def generuj_pdf_reportlab(df_sorted, nazwa_zawodow=""):
         ])
     t = Table(data, repeatRows=1)
     t.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.black),
-        ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
+        ('BACKGROUND', (0,0), (-1,0), colors.grey),
+        ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
+        ('FONTNAME', (0,0), (-1,0), 'DejaVu'),
         ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.black),
     ]))
+    for i in range(1, len(data)):
+        if i % 2 == 0:
+            t.setStyle(TableStyle([('BACKGROUND', (0,i), (-1,i), colors.lightgrey)]))
     elements.append(t)
     elements.append(Spacer(1, 20))
 
-    # --- Podsumowanie sektorów z miejscem ogólnym ---
-    elements.append(Paragraph("📌 Podsumowanie sektorów", styles['Heading2']))
+    # --- Podsumowanie sektorów ---
+    elements.append(Paragraph("📌 Podsumowanie sektorów", styles['MyHeading2']))
     elements.append(Spacer(1, 10))
     for sektor, grupa in df_sorted.groupby("sektor"):
-        elements.append(Paragraph(f"Sektor {sektor}", styles['Heading3']))
+        elements.append(Paragraph(f"Sektor {sektor}", styles['MyHeading3']))
         data = [["Imię", "Stanowisko", "Waga", "Miejsce w sektorze", "Miejsce ogólne"]]
         for _, row in grupa.sort_values(by="waga", ascending=False).iterrows():
             data.append([
@@ -88,11 +106,15 @@ def generuj_pdf_reportlab(df_sorted, nazwa_zawodow=""):
             ])
         t = Table(data, repeatRows=1)
         t.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
-            ('GRID', (0,0), (-1,-1), 0.5, colors.black),
-            ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
+            ('BACKGROUND', (0,0), (-1,0), colors.grey),
+            ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
+            ('FONTNAME', (0,0), (-1,0), 'DejaVu'),
             ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.black),
         ]))
+        for i in range(1, len(data)):
+            if i % 2 == 0:
+                t.setStyle(TableStyle([('BACKGROUND', (0,i), (-1,i), colors.lightgrey)]))
         elements.append(t)
         elements.append(Spacer(1, 15))
 
@@ -295,4 +317,3 @@ elif S["etap"] == 4:
             file_name="wyniki_zawodow.pdf",
             mime="application/pdf"
         )
-
