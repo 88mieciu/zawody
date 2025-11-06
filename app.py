@@ -125,18 +125,25 @@ elif S["etap"] == 2:
         for i in range(sektory_n):
             nazwa = chr(65 + i)
             key = f"sektor_{nazwa}"
+
+            # gwarancja, że st.session_state[key] jest listą
             if key not in st.session_state or not isinstance(st.session_state[key], list):
                 val = S.get("sektory", {}).get(nazwa, [])
                 if not isinstance(val, list):
                     val = []
                 st.session_state[key] = val
 
-            value_str = ",".join(map(str, st.session_state[key])) if st.session_state[key] else ""
+            # zawsze string
+            value_list = st.session_state[key]
+            value_str = ",".join(str(x) for x in value_list) if value_list else ""
+
             pola = st.text_input(
                 f"Sektor {nazwa} – podaj stanowiska (np. 1,2,3):",
                 value=value_str,
                 key=key
             )
+
+            # konwersja inputu na listę liczb
             if pola.strip():
                 lista = [int(x) for x in pola.split(",") if x.strip().isdigit()]
                 if lista:
