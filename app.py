@@ -66,18 +66,28 @@ if st.button("🧹 Resetuj zawody"):
 if S["etap"] == 1:
     st.markdown("<h3 style='font-size:20px'>⚙️ Krok 1: Ustawienia zawodów</h3>", unsafe_allow_html=True)
 
+    # bezpieczne wartości domyślne
+    default_liczba_zawodnikow = S.get("liczba_zawodnikow", 0)
+    if not isinstance(default_liczba_zawodnikow, int) or default_liczba_zawodnikow < 1:
+        default_liczba_zawodnikow = 10
+
+    default_liczba_stanowisk = S.get("liczba_stanowisk", 0)
+    if not isinstance(default_liczba_stanowisk, int) or default_liczba_stanowisk < 1:
+        default_liczba_stanowisk = 10
+
+    default_liczba_sektorow = S.get("liczba_sektorow", 0)
+    if not isinstance(default_liczba_sektorow, int) or default_liczba_sektorow < 1:
+        default_liczba_sektorow = 3
+
     with st.form("form_etap1"):
         liczba_zawodnikow = st.number_input(
-            "Liczba zawodników:", min_value=1, max_value=200,
-            value=S.get("liczba_zawodnikow") if isinstance(S.get("liczba_zawodnikow"), int) else 10
+            "Liczba zawodników:", min_value=1, max_value=200, value=default_liczba_zawodnikow
         )
         liczba_stanowisk = st.number_input(
-            "Liczba stanowisk:", min_value=1, max_value=200,
-            value=S.get("liczba_stanowisk") if isinstance(S.get("liczba_stanowisk"), int) else 10
+            "Liczba stanowisk:", min_value=1, max_value=200, value=default_liczba_stanowisk
         )
         liczba_sektorow = st.number_input(
-            "Liczba sektorów:", min_value=1, max_value=20,
-            value=S.get("liczba_sektorow") if isinstance(S.get("liczba_sektorow"), int) else 3
+            "Liczba sektorów:", min_value=1, max_value=20, value=default_liczba_sektorow
         )
 
         submit = st.form_submit_button("➡️ Dalej – definiuj sektory")
