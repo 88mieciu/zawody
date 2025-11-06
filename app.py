@@ -264,33 +264,26 @@ elif S["etap"] == 4:
                 z["waga"] = st.number_input("Waga (g)", 0, 100000, z["waga"], step=10, key=f"waga_{i}")
         zapisz_dane(S)
 
-        if st.button("🏆 Pokaż wyniki końcowe"):
-            df = pd.DataFrame(S["zawodnicy"])
-            
-            # Ranking w sektorach
-            df["miejsce_w_sektorze"] = df.groupby("sektor")["waga"].rank(ascending=False, method="min")
-            
-            # Ranking ogólny (wszystkie zawody)
-            df["miejsce_ogolne"] = df["waga"].rank(ascending=False, method="min")
-            
-            # Sortowanie po miejscu ogólnym i wadze
-            df_sorted = df.sort_values(by=["miejsce_ogolne","waga"], ascending=[True,False])
+        # --- Wyświetlenie wyników ---
+        df = pd.DataFrame(S["zawodnicy"])
+        df["miejsce_w_sektorze"] = df.groupby("sektor")["waga"].rank(ascending=False, method="min")
+        df["miejsce_ogolne"] = df["waga"].rank(ascending=False, method="min")
+        df_sorted = df.sort_values(by=["miejsce_ogolne","waga"], ascending=[True,False])
 
-            st.markdown("<h4 style='font-size:18px'>📊 Ranking końcowy (wszyscy zawodnicy)</h4>", unsafe_allow_html=True)
-            st.dataframe(df_sorted[["miejsce_ogolne","imie","sektor","stanowisko","waga","miejsce_w_sektorze"]], hide_index=True)
+        st.markdown("<h4 style='font-size:18px'>📊 Ranking końcowy (wszyscy zawodnicy)</h4>", unsafe_allow_html=True)
+        st.dataframe(df_sorted[["miejsce_ogolne","imie","sektor","stanowisko","waga","miejsce_w_sektorze"]], hide_index=True)
 
-            st.markdown("<h4 style='font-size:18px'>📌 Podsumowanie sektorów</h4>", unsafe_allow_html=True)
-            for sektor, grupa in df_sorted.groupby("sektor"):
-                st.write(f"**Sektor {sektor}**")
-                tabela = grupa.sort_values(by="waga", ascending=False)[["imie","stanowisko","waga","miejsce_w_sektorze"]]
-                st.dataframe(tabela, hide_index=True)
+        st.markdown("<h4 style='font-size:18px'>📌 Podsumowanie sektorów</h4>", unsafe_allow_html=True)
+        for sektor, grupa in df_sorted.groupby("sektor"):
+            st.write(f"**Sektor {sektor}**")
+            tabela = grupa.sort_values(by="waga", ascending=False)[["imie","stanowisko","waga","miejsce_w_sektorze"]]
+            st.dataframe(tabela, hide_index=True)
 
-            # --- Pobieranie PDF ---
-            if st.button("💾 Pobierz wyniki jako PDF"):
-                pdf_bytes = generuj_pdf_reportlab(df_sorted)
-                st.download_button(
-                    label="📄 Pobierz PDF",
-                    data=pdf_bytes,
-                    file_name="wyniki_zawodow.pdf",
-                    mime="application/pdf"
-                )
+        # --- Pobieranie PDF ---
+        pdf_bytes = generuj_pdf_reportlab(df_sorted)
+        st.download_button(
+            label="💾 Pobierz wyniki jako PDF",
+            data=pdf_bytes,
+            file_name="wyniki_zawodow.pdf",
+            mime="application/pdf"
+        )
