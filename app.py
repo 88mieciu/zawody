@@ -192,6 +192,11 @@ elif S["etap"] == 3:
                 save_state()
                 st.experimental_rerun()
 
+    # Inicjalizacja zmiennej do usuwania
+    if "del_index" not in st.session_state:
+        st.session_state["del_index"] = None
+
+    # Lista zawodników
     if S["zawodnicy"]:
         st.subheader("📋 Lista zawodników")
 
@@ -222,9 +227,14 @@ elif S["etap"] == 3:
 
             with col4:
                 if st.button("🗑️ Usuń", key=f"del_{i}"):
-                    del S["zawodnicy"][i]
-                    save_state()
-                    st.experimental_rerun()
+                    st.session_state["del_index"] = i
+
+    # Usuwanie zawodnika po pętli
+    if st.session_state["del_index"] is not None:
+        del S["zawodnicy"][st.session_state["del_index"]]
+        st.session_state["del_index"] = None
+        save_state()
+        st.experimental_rerun()
 
 
 # -------------------------------------------------------------------
