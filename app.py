@@ -28,6 +28,7 @@ def wczytaj_dane():
 # --- Funkcja resetu ---
 def reset_zawody():
     st.session_state["S"] = {
+        "nazwa_zawodow": "",
         "liczba_zawodnikow": 0,
         "liczba_stanowisk": 0,
         "liczba_sektorow": 0,
@@ -39,17 +40,20 @@ def reset_zawody():
         os.remove(DATA_FILE)
 
 # --- Funkcja generowania PDF z wynikami ---
-def generuj_pdf_reportlab(df_sorted):
+def generuj_pdf_reportlab(df_sorted, nazwa_zawodow=""):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4)
     elements = []
     styles = getSampleStyleSheet()
-    heading = styles['Heading1']
 
-    # --- Ranking ogólny ---
-    elements.append(Paragraph("📊 Ranking końcowy (wszyscy zawodnicy)", heading))
+    # Nagłówek z nazwą zawodów
+    if nazwa_zawodow:
+        elements.append(Paragraph(f"🏆 {nazwa_zawodow}", styles['Heading1']))
+        elements.append(Spacer(1, 15))
+
+    # Ranking ogólny
+    elements.append(Paragraph("📊 Ranking końcowy (wszyscy zawodnicy)", styles['Heading2']))
     elements.append(Spacer(1, 10))
-
     data = [["Miejsce", "Imię", "Sektor", "Stanowisko", "Waga", "Miejsce w sektorze"]]
     for _, row in df_sorted.iterrows():
         data.append([
@@ -70,20 +74,14 @@ def generuj_pdf_reportlab(df_sorted):
     elements.append(t)
     elements.append(Spacer(1, 20))
 
-    # --- Podsumowanie sektorów ---
-    elements.append(Paragraph("📌 Podsumowanie sektorów", heading))
+    # Podsumowanie sektorów
+    elements.append(Paragraph("📌 Podsumowanie sektorów", styles['Heading2']))
     elements.append(Spacer(1, 10))
-
     for sektor, grupa in df_sorted.groupby("sektor"):
-        elements.append(Paragraph(f"Sektor {sektor}", styles['Heading2']))
+        elements.append(Paragraph(f"Sektor {sektor}", styles['Heading3']))
         data = [["Imię", "Stanowisko", "Waga", "Miejsce w sektorze"]]
         for _, row in grupa.sort_values(by="waga", ascending=False).iterrows():
-            data.append([
-                row['imie'],
-                row['stanowisko'],
-                row['waga'],
-                int(row['miejsce_w_sektorze'])
-            ])
+            data.append([row['imie'], row['stanowisko'], row['waga'], int(row['miejsce_w_sektorze'])])
         t = Table(data, repeatRows=1)
         t.setStyle(TableStyle([
             ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
@@ -105,6 +103,7 @@ if "S" not in st.session_state:
         st.session_state["S"] = dane
     else:
         st.session_state["S"] = {
+            "nazwa_zawodow": "",
             "liczba_zawodnikow": 0,
             "liczba_stanowisk": 0,
             "liczba_sektorow": 0,
@@ -124,6 +123,10 @@ st.button("🧹 Resetuj zawody", on_click=reset_zawody)
 # --- ETAP 1: KONFIGURACJA ---
 if S["etap"] == 1:
     st.markdown("<h3 style='font-size:20px'>⚙️ Krok 1: Ustawienia zawodów</h3>", unsafe_allow_html=True)
+
+    # Nazwa zawodów
+    S["nazwa_zawodow"] = st.text_input("Nazwa zawodów:", S.get("nazwa_zawodow", ""))
+
     S["liczba_zawodnikow"] = st.number_input("Liczba zawodników:", 1, 40, S["liczba_zawodnikow"] or 10)
     S["liczba_stanowisk"] = st.number_input("Liczba stanowisk na łowisku:", 1, 100, S["liczba_stanowisk"] or 10)
     S["liczba_sektorow"] = st.number_input("Liczba sektorów:", 1, 10, S["liczba_sektorow"] or 3)
@@ -264,7 +267,6 @@ elif S["etap"] == 4:
                 z["waga"] = st.number_input("Waga (g)", 0, 100000, z["waga"], step=10, key=f"waga_{i}")
         zapisz_dane(S)
 
-        # --- Wyświetlenie wyników ---
         df = pd.DataFrame(S["zawodnicy"])
         df["miejsce_w_sektorze"] = df.groupby("sektor")["waga"].rank(ascending=False, method="min")
         df["miejsce_ogolne"] = df["waga"].rank(ascending=False, method="min")
@@ -279,8 +281,7 @@ elif S["etap"] == 4:
             tabela = grupa.sort_values(by="waga", ascending=False)[["imie","stanowisko","waga","miejsce_w_sektorze"]]
             st.dataframe(tabela, hide_index=True)
 
-        # --- Pobieranie PDF ---
-        pdf_bytes = generuj_pdf_reportlab(df_sorted)
+        pdf_bytes = generuj_pdf_reportlab(df_sorted, S.get("nazwa_zawodow", ""))
         st.download_button(
             label="💾 Pobierz wyniki jako PDF",
             data=pdf_bytes,
