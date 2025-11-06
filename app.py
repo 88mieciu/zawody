@@ -67,18 +67,31 @@ with st.form("form_reset"):
 if S["etap"] == 1:
     st.markdown("<h3 style='font-size:20px'>⚙️ Krok 1: Ustawienia zawodów</h3>", unsafe_allow_html=True)
 
+    # Bezpieczne wartości domyślne
+    liczba_zawodnikow_default = S.get("liczba_zawodnikow")
+    if not isinstance(liczba_zawodnikow_default, int) or liczba_zawodnikow_default < 1:
+        liczba_zawodnikow_default = 10
+
+    liczba_stanowisk_default = S.get("liczba_stanowisk")
+    if not isinstance(liczba_stanowisk_default, int) or liczba_stanowisk_default < 1:
+        liczba_stanowisk_default = 10
+
+    liczba_sektorow_default = S.get("liczba_sektorow")
+    if not isinstance(liczba_sektorow_default, int) or liczba_sektorow_default < 1:
+        liczba_sektorow_default = 3
+
     with st.form("form_etap1"):
         liczba_zawodnikow = st.number_input(
             "Liczba zawodników:", min_value=1, max_value=200,
-            value=S.get("liczba_zawodnikow", 10)
+            value=liczba_zawodnikow_default
         )
         liczba_stanowisk = st.number_input(
             "Liczba stanowisk:", min_value=1, max_value=200,
-            value=S.get("liczba_stanowisk", 10)
+            value=liczba_stanowisk_default
         )
         liczba_sektorow = st.number_input(
             "Liczba sektorów:", min_value=1, max_value=20,
-            value=S.get("liczba_sektorow", 3)
+            value=liczba_sektorow_default
         )
 
         if st.form_submit_button("➡️ Dalej – definiuj sektory"):
@@ -123,7 +136,6 @@ elif S["etap"] == 2:
                     val = []
                 st.session_state[key] = val
 
-            # konwersja na string
             value_list = st.session_state[key]
             value_str = ",".join(str(x) for x in value_list) if value_list else ""
 
@@ -133,7 +145,6 @@ elif S["etap"] == 2:
                 key=key
             )
 
-            # zapis do słownika sektory
             if pola.strip():
                 lista = [int(x) for x in pola.split(",") if x.strip().isdigit()]
                 if lista:
