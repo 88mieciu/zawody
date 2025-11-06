@@ -70,12 +70,28 @@ if S["etap"] == 1:
 # --- ETAP 2: DEFINICJA SEKTORÓW ---
 elif S["etap"] == 2:
     st.markdown("<h3 style='font-size:20px'>📍 Krok 2: Definicja sektorów</h3>", unsafe_allow_html=True)
+
+    # --- Podsumowanie liczby stanowisk na sektor ---
+    if S["liczba_stanowisk"] > 0 and S["liczba_sektorow"] > 0:
+        base = S["liczba_stanowisk"] // S["liczba_sektorow"]
+        remainder = S["liczba_stanowisk"] % S["liczba_sektorow"]
+        stanowiska_info = []
+        for i in range(S["liczba_sektorow"]):
+            nazwa = chr(65 + i)
+            ilosc = base + (1 if i < remainder else 0)
+            stanowiska_info.append(f"Sektor {nazwa}: {ilosc} stanowisk")
+        st.info("ℹ️ Rozkład stanowisk:\n" + "\n".join(stanowiska_info))
+        if remainder != 0:
+            st.warning(f"⚠️ Nie wszystkie sektory mają równą liczbę miejsc. Największa różnica to 1 stanowisko.")
+
     sektory = {}
     for i in range(S["liczba_sektorow"]):
         nazwa = chr(65 + i)
-        pola = st.text_input(f"Sektor {nazwa} – podaj stanowiska (np. 1,2,3):",
-                             value=",".join(map(str, S["sektory"].get(nazwa, []))),
-                             key=f"sektor_{nazwa}")
+        pola = st.text_input(
+            f"Sektor {nazwa} – podaj stanowiska (np. 1,2,3):",
+            value=",".join(map(str, S["sektory"].get(nazwa, []))),
+            key=f"sektor_{nazwa}"
+        )
         if pola.strip():
             try:
                 sektory[nazwa] = [int(x.strip()) for x in pola.split(",") if x.strip().isdigit()]
@@ -176,7 +192,6 @@ elif S["etap"] == 4:
             S["etap"] = 3
             zapisz_dane(S)
     else:
-        # Wprowadzanie wag
         for i,z in enumerate(S["zawodnicy"]):
             col1, col2 = st.columns([2,1])
             with col1:
@@ -199,7 +214,6 @@ elif S["etap"] == 4:
                 tabela = grupa.sort_values(by="waga", ascending=False)[["imie","stanowisko","waga","miejsce_w_sektorze"]]
                 st.dataframe(tabela, hide_index=True)
 
-            # --- Eksport do TXT ---
             txt_lines = ["📊 Ranking końcowy (wszyscy zawodnicy):\n"]
             txt_lines.append("Imię\tSektor\tStanowisko\tWaga\tMiejsce w sektorze")
             for _, row in df_sorted.iterrows():
@@ -220,3 +234,4 @@ elif S["etap"] == 4:
         if st.button("⬅️ Wróć do zawodników"):
             S["etap"] = 3
             zapisz_dane(S)
+
