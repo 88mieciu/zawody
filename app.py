@@ -1,43 +1,3 @@
-import streamlit as st
-import pandas as pd
-import json
-import os
-from reportlab.lib.pagesizes import A4
-from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet
-import io
-
-# --- Ścieżka do pliku przechowującego dane ---
-DATA_FILE = "zawody_data.json"
-
-# --- Funkcje pomocnicze ---
-def zapisz_dane(S):
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(S, f, ensure_ascii=False, indent=2)
-
-def wczytaj_dane():
-    if os.path.exists(DATA_FILE):
-        try:
-            with open(DATA_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except:
-            return None
-    return None
-
-def reset_zawody():
-    st.session_state["S"] = {
-        "nazwa_zawodow": "",
-        "liczba_zawodnikow": 0,
-        "liczba_stanowisk": 0,
-        "liczba_sektorow": 0,
-        "sektory": {},
-        "zawodnicy": [],
-        "etap": 1
-    }
-    if os.path.exists(DATA_FILE):
-        os.remove(DATA_FILE)
-
 def generuj_pdf_reportlab(df_sorted, nazwa_zawodow=""):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4)
@@ -70,16 +30,17 @@ def generuj_pdf_reportlab(df_sorted, nazwa_zawodow=""):
         ('ALIGN', (0,0), (-1,-1), 'CENTER'),
         ('GRID', (0,0), (-1,-1), 0.5, colors.black),
     ]))
+    # Naprzemienne kolorowanie wierszy + wyróżnienie zwycięzcy
     for i in range(1, len(data)):
         if i % 2 == 0:
             t.setStyle(TableStyle([('BACKGROUND', (0,i), (-1,i), colors.lightgrey)]))
-        if i == 1:  # zwycięzca
+        if i == 1:  # zwycięzca (miejsce 1)
             t.setStyle(TableStyle([('BACKGROUND', (0,i), (-1,i), colors.lightgreen),
                                    ('FONTNAME', (0,i), (-1,i), 'Helvetica-Bold')]))
     elements.append(t)
     elements.append(Spacer(1, 20))
 
-    # --- Podsumowanie sektorów ---
+    # --- Podsumowanie sektorów z miejscem ogólnym ---
     elements.append(Paragraph("📌 Podsumowanie sektorów", styles['Heading2']))
     elements.append(Spacer(1, 10))
     for sektor, grupa in df_sorted.groupby("sektor"):
@@ -101,6 +62,7 @@ def generuj_pdf_reportlab(df_sorted, nazwa_zawodow=""):
             ('ALIGN', (0,0), (-1,-1), 'CENTER'),
             ('GRID', (0,0), (-1,-1), 0.5, colors.black),
         ]))
+        # Naprzemienne kolorowanie + wyróżnienie zwycięzcy w sektorze
         for i in range(1, len(data)):
             if i % 2 == 0:
                 t.setStyle(TableStyle([('BACKGROUND', (0,i), (-1,i), colors.lightgrey)]))
@@ -113,32 +75,3 @@ def generuj_pdf_reportlab(df_sorted, nazwa_zawodow=""):
     doc.build(elements)
     buffer.seek(0)
     return buffer
-
-# --- Inicjalizacja stanu ---
-if "S" not in st.session_state:
-    dane = wczytaj_dane()
-    if dane:
-        st.session_state["S"] = dane
-    else:
-        st.session_state["S"] = {
-            "nazwa_zawodow": "",
-            "liczba_zawodnikow": 0,
-            "liczba_stanowisk": 0,
-            "liczba_sektorow": 0,
-            "sektory": {},
-            "zawodnicy": [],
-            "etap": 1
-        }
-
-S = st.session_state["S"]
-
-st.set_page_config(page_title="Zawody wędkarskie", layout="wide")
-st.markdown("<h1 style='font-size:28px'>🎣 Panel organizatora zawodów wędkarskich by Wojtek Mierzejewski</h1>", unsafe_allow_html=True)
-
-# --- PRZYCISK RESET ---
-st.button("🧹 Resetuj zawody", on_click=reset_zawody)
-
-# --- ETAPY 1-4 ---
-# (Kod wszystkich etapów jest identyczny jak w poprzedniej wersji, w tym logika dodawania zawodników,
-#  przeliczania miejsc sektorowych i ogólnych, zapis danych między sesjami)
-# Zwróć uwagę, że w etapie 4 przycisk "Pobierz PDF" korzysta teraz z funkcji generującej estetyczny PDF powyżej
