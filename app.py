@@ -6,7 +6,12 @@ from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 import io
+
+# --- Rejestracja czcionki obsługującej polskie znaki ---
+pdfmetrics.registerFont(TTFont('DejaVu', 'DejaVuSans.ttf'))
 
 # --- Ścieżka do pliku przechowującego dane ---
 DATA_FILE = "zawody_data.json"
@@ -38,20 +43,26 @@ def reset_zawody():
     if os.path.exists(DATA_FILE):
         os.remove(DATA_FILE)
 
+# --- Funkcja generowania PDF z polskimi znakami ---
 def generuj_pdf_reportlab(df_sorted, nazwa_zawodow=""):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4)
     elements = []
     styles = getSampleStyleSheet()
 
-    # --- Nagłówek z nazwą zawodów ---
+    # Nagłówek z nazwą zawodów
     if nazwa_zawodow:
-        elements.append(Paragraph(f"🏆 {nazwa_zawodow}", styles['Heading1']))
+        header_style = styles['Heading1']
+        header_style.fontName = 'DejaVu'
+        elements.append(Paragraph(f"🏆 {nazwa_zawodow}", header_style))
         elements.append(Spacer(1, 15))
 
-    # --- Ranking ogólny ---
-    elements.append(Paragraph("📊 Ranking końcowy (wszyscy zawodnicy)", styles['Heading2']))
+    # Ranking ogólny
+    heading_style = styles['Heading2']
+    heading_style.fontName = 'DejaVu'
+    elements.append(Paragraph("📊 Ranking końcowy (wszyscy zawodnicy)", heading_style))
     elements.append(Spacer(1, 10))
+
     data = [["Miejsce", "Imię", "Sektor", "Stanowisko", "Waga", "Miejsce w sektorze"]]
     for _, row in df_sorted.iterrows():
         data.append([
@@ -66,14 +77,14 @@ def generuj_pdf_reportlab(df_sorted, nazwa_zawodow=""):
     t.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
         ('GRID', (0,0), (-1,-1), 0.5, colors.black),
-        ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
+        ('FONTNAME', (0,0), (-1,-1), 'DejaVu'),
         ('ALIGN', (0,0), (-1,-1), 'CENTER'),
     ]))
     elements.append(t)
     elements.append(Spacer(1, 20))
 
-    # --- Podsumowanie sektorów ---
-    elements.append(Paragraph("📌 Podsumowanie sektorów", styles['Heading2']))
+    # Podsumowanie sektorów
+    elements.append(Paragraph("📌 Podsumowanie sektorów", heading_style))
     elements.append(Spacer(1, 10))
     for sektor, grupa in df_sorted.groupby("sektor"):
         elements.append(Paragraph(f"Sektor {sektor}", styles['Heading3']))
@@ -90,7 +101,7 @@ def generuj_pdf_reportlab(df_sorted, nazwa_zawodow=""):
         t.setStyle(TableStyle([
             ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
             ('GRID', (0,0), (-1,-1), 0.5, colors.black),
-            ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
+            ('FONTNAME', (0,0), (-1,-1), 'DejaVu'),
             ('ALIGN', (0,0), (-1,-1), 'CENTER'),
         ]))
         elements.append(t)
@@ -127,6 +138,7 @@ st.markdown(
     "<h1 style='font-size:14px; text-align:center'>© Wojciech Mierzejewski 2026</h1>",
     unsafe_allow_html=True
 )
+
 # --- PRZYCISK RESET ---
 st.button("🧹 Resetuj zawody", on_click=reset_zawody)
 
@@ -146,7 +158,6 @@ if S["etap"] == 1:
 elif S["etap"] == 2:
     st.markdown("<h3 style='font-size:20px'>📍 Krok 2: Definicja sektorów</h3>", unsafe_allow_html=True)
 
-    # Informacja o przewidywanej liczbie zawodników w sektorach
     if S["liczba_zawodnikow"] > 0 and S["liczba_sektorow"] > 0:
         base = S["liczba_zawodnikow"] // S["liczba_sektorow"]
         remainder = S["liczba_zawodnikow"] % S["liczba_sektorow"]
@@ -238,7 +249,6 @@ elif S["etap"] == 3:
             col1, col2, col3 = st.columns([2,1,1])
             with col1:
                 z["imie"] = st.text_input(f"Zawodnik {i+1}", z["imie"], key=f"imie_{i}")
-                # teraz pole wagi poniżej imienia
                 z["waga"] = st.number_input("Waga (g)", 0, 1000000, z["waga"], step=10, key=f"waga_{i}")
             with col2:
                 wszystkie_dozwolone = sorted(sum(S["sektory"].values(), []))
@@ -276,12 +286,11 @@ elif S["etap"] == 4:
         df = pd.DataFrame(S["zawodnicy"])
         df["miejsce_w_sektorze"] = df.groupby("sektor")["waga"].rank(ascending=False, method="min")
 
-        # --- Ranking ogólny wg miejsc sektorowych ---
+        # Ranking ogólny wg miejsc sektorowych
         df_sorted = pd.DataFrame()
         for miejsce in sorted(df["miejsce_w_sektorze"].unique()):
             grupa = df[df["miejsce_w_sektorze"] == miejsce].sort_values(by="waga", ascending=False)
             df_sorted = pd.concat([df_sorted, grupa])
-
         df_sorted["miejsce_ogolne"] = range(1, len(df_sorted)+1)
 
         st.markdown("<h4 style='font-size:18px'>📊 Ranking końcowy (wszyscy zawodnicy)</h4>", unsafe_allow_html=True)
