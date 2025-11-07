@@ -208,62 +208,74 @@ if S["etap"] == 1:
         S["etap"] = 2
         zapisz_dane(S)
 
-# ================================
-# ETAP 2: DEFINICJA SEKTORÓW (wersja A)
-# ================================
-elif S["etap"] == 2:
-    st.markdown("<h3 style='font-size:20px'>📍 Krok 2: Definicja sektorów</h3>", unsafe_allow_html=True)
-    st.info("Wpisz stanowiska jako pojedyncze liczby (np. 3), zakresy (np. 1-5) lub mieszankę (np. 1-3,7,10-12).")
+###############################
+# ✅ KROK 2: DEFINICJA SEKTORÓW
+###############################
 
-    sektory = {}
-    zajete_stanowiska = set()   # do walidacji nakładających się stanowisk
+st.header("📌 Krok 2: Definicja sektorów")
 
-    # Pętla po sektorach
-    for i in range(S["liczba_sektorow"]):
-        nazwa = chr(65 + i) if i < 26 else f"S{i}"  # zabezpieczenie na więcej niż 26 sektorów
-        default_val = ",".join(str(x) for x in S["sektory"].get(nazwa, []))
+def parse_stanowiska(text):
+    """
+    Parsuje ciąg stanowisk, obsługując formaty:
+    '1,2,3', '1-5', '1-3,7,10-12'
+    """
+    stanowiska = []
+    parts = text.split(",")
 
-        pola = st.text_input(
-            f"Sektor {nazwa} – podaj stanowiska (np. 1-5 lub 1-3,7,10-12):",
-            value=default_val,
-            key=f"sektor_{nazwa}"
-        )
+    for p in parts:
+        p = p.strip()
+        if "-" in p:
+            try:
+                start, end = p.split("-")
+                start, end = int(start), int(end)
+                if start <= end:
+                    stanowiska.extend(range(start, end + 1))
+            except:
+                pass
+        elif p.isdigit():
+            stanowiska.append(int(p))
 
-        if pola.strip():
-            wynik = parse_stanowiska(pola)
+    return stanowiska
 
-            # Jeśli parsowanie nic nie zwróciło, poinformuj użytkownika
-            if not wynik:
-                st.warning(f"⚠️ Nie rozpoznano stanowisk dla sektora {nazwa}. Użyj formatu np. 1-5 lub 1,3,5.")
-                continue
 
-            # Walidacja: kolizje z wcześniej przypisanymi stanowiskami
-            kolizje = [x for x in wynik if x in zajete_stanowiska]
-            if kolizje:
-                st.error(f"🚫 Te stanowiska nakładają się z innym sektorem: {sorted(kolizje)}")
-                # Nie zapisujemy tego sektora do słownika, dopóki użytkownik nie poprawi
-            else:
-                sektory[nazwa] = wynik
-                zajete_stanowiska.update(wynik)
-                # Wyświetlenie informacji o liczbie stanowisk — Wersja A
-                st.info(f"📏 **Liczba stanowisk w sektorze {nazwa}: {len(wynik)}**")
+sektory = {}
+zajete_stanowiska = set()  # walidacja nakładających się zakresów
 
-    # Przycisk zapisania sektorów
-    col1, col2 = st.columns([1,1])
-    with col1:
-        if st.button("💾 Zapisz sektory"):
-            if len(sektory) != S["liczba_sektorow"]:
-                st.error("❌ Nie wszystkie sektory mają poprawnie zdefiniowane stanowiska. Upewnij się, że poprawiłeś wszystkie błędy.")
-            else:
-                S["sektory"] = sektory
-                S["etap"] = 3
-                zapisz_dane(S)
-                st.success("✅ Sektory zapisane.")
-                st.experimental_rerun()
-    with col2:
-        if st.button("⬅️ Wstecz"):
-            S["etap"] = 1
-            zapisz_dane(S)
+for i in range(S["liczba_sektorow"]):
+    nazwa = chr(65 + i)
+    default_val = ",".join(str(x) for x in S["sektory"].get(nazwa, []))
+
+    pola = st.text_input(
+        f"Sektor {nazwa} – podaj stanowiska (np. 1-5 lub 1-3,7,10-12):",
+        value=default_val,
+        key=f"sektor_{nazwa}"
+    )
+
+    if pola.strip():
+        wynik = parse_stanowiska(pola)
+        kolizje = [x for x in wynik if x in zajete_stanowiska]
+
+        if kolizje:
+            st.error(f"🚫 Te stanowiska nakładają się z innym sektorem: {kolizje}")
+        else:
+            sektory[nazwa] = wynik
+            zajete_stanowiska.update(wynik)
+
+            # ✅ INFORMACJA O LICZBIE ZAWODNIKÓW (CZYLI STANOWISK)
+            st.success(
+                f"📏 W sektorze **{nazwa}** jest **{len(wynik)} stanowisk**, "
+                f"czyli **{len(wynik)} zawodników**."
+            )
+
+# Zapis do sesji
+S["sektory"] = sektory
+
+if st.button("➡️ Przejdź do losowania stanowisk"):
+    if not sektory:
+        st.warning("⚠️ Najpierw uzupełnij sektory")
+    else:
+        st.session_state.etap = "losowanie"
+ zapisz_dane(S)
 
 # ================================
 # ETAP 3: DODAWANIE ZAWODNIKÓW
