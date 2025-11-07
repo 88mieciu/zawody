@@ -9,7 +9,6 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfbase import pdfmetrics
-import base64
 
 # --- Ścieżka do pliku przechowującego dane ---
 DATA_FILE = "zawody_data.json"
@@ -43,7 +42,6 @@ def reset_zawody():
 
 def generuj_pdf_reportlab(df_sorted, nazwa_zawodow=""):
     buffer = io.BytesIO()
-    
     # Rejestracja czcionki z polskimi znakami
     pdfmetrics.registerFont(TTFont('DejaVu', 'DejaVuSans.ttf'))
 
@@ -110,11 +108,6 @@ def generuj_pdf_reportlab(df_sorted, nazwa_zawodow=""):
     doc.build(elements)
     buffer.seek(0)
     return buffer
-
-def pobierz_pdf_link(pdf_bytes, nazwa_pliku="wyniki_zawodow.pdf"):
-    b64 = base64.b64encode(pdf_bytes.read()).decode()
-    href = f'<a href="data:application/pdf;base64,{b64}" download="{nazwa_pliku}">💾 Pobierz wyniki jako PDF</a>'
-    st.markdown(href, unsafe_allow_html=True)
 
 # --- Inicjalizacja stanu ---
 if "S" not in st.session_state:
@@ -295,4 +288,13 @@ elif S["etap"] == 4:
             st.dataframe(tabela, hide_index=True)
 
         pdf_bytes = generuj_pdf_reportlab(df_sorted, S.get("nazwa_zawodow", ""))
-        pobierz_pdf_link(pdf_bytes, "wyniki_zawodow.pdf")
+        # Zapis tymczasowego pliku PDF i pobranie
+        with open("wyniki_zawodow.pdf", "wb") as f:
+            f.write(pdf_bytes.read())
+        with open("wyniki_zawodow.pdf","rb") as f:
+            st.download_button(
+                label="💾 Pobierz wyniki jako PDF",
+                data=f,
+                file_name="wyniki_zawodow.pdf",
+                mime="application/pdf"
+            )
