@@ -274,7 +274,7 @@ elif S["etap"] == 4:
             with col1:
                 st.write(f"**{z['imie']}**")
             with col2:
-                z["waga"] = st.number_input("Waga (g)", 0, 100000, z["waga"], step=10, key=f"waga_{i}")
+                z["waga"] = st.number_input("Waga (g)", 0, 10000000, z["waga"], step=10, key=f"waga_{i}")
         zapisz_dane(S)
 
         df = pd.DataFrame(S["zawodnicy"])
