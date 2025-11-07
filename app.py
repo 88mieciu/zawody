@@ -3,16 +3,13 @@ import pandas as pd
 import json
 import os
 from reportlab.lib.pagesizes import A4
-from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.lib import colors
 import io
 
 # --- Ścieżka do pliku przechowującego dane ---
 DATA_FILE = "zawody_data.json"
-FONT_FILE = "DejaVuSans.ttf"  # Plik czcionki w katalogu projektu
 
 # --- Funkcje pomocnicze ---
 def zapisz_dane(S):
@@ -42,22 +39,17 @@ def reset_zawody():
         os.remove(DATA_FILE)
 
 def generuj_pdf_reportlab(df_sorted, nazwa_zawodow=""):
-    pdfmetrics.registerFont(TTFont('DejaVu', FONT_FILE))
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4)
     elements = []
     styles = getSampleStyleSheet()
-    styles['Heading1'].fontName = 'DejaVu'
-    styles['Heading2'].fontName = 'DejaVu'
-    styles['Heading3'].fontName = 'DejaVu'
-    styles['Normal'].fontName = 'DejaVu'
 
-    # Nagłówek
+    # --- Nagłówek z nazwą zawodów ---
     if nazwa_zawodow:
         elements.append(Paragraph(f"🏆 {nazwa_zawodow}", styles['Heading1']))
         elements.append(Spacer(1, 15))
 
-    # Ranking ogólny
+    # --- Ranking ogólny ---
     elements.append(Paragraph("📊 Ranking końcowy (wszyscy zawodnicy)", styles['Heading2']))
     elements.append(Spacer(1, 10))
     data = [["Miejsce", "Imię", "Sektor", "Stanowisko", "Waga", "Miejsce w sektorze"]]
@@ -74,13 +66,13 @@ def generuj_pdf_reportlab(df_sorted, nazwa_zawodow=""):
     t.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
         ('GRID', (0,0), (-1,-1), 0.5, colors.black),
-        ('FONTNAME', (0,0), (-1,-1), 'DejaVu'),
+        ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
         ('ALIGN', (0,0), (-1,-1), 'CENTER'),
     ]))
     elements.append(t)
     elements.append(Spacer(1, 20))
 
-    # Podsumowanie sektorów
+    # --- Podsumowanie sektorów ---
     elements.append(Paragraph("📌 Podsumowanie sektorów", styles['Heading2']))
     elements.append(Spacer(1, 10))
     for sektor, grupa in df_sorted.groupby("sektor"):
@@ -98,7 +90,7 @@ def generuj_pdf_reportlab(df_sorted, nazwa_zawodow=""):
         t.setStyle(TableStyle([
             ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
             ('GRID', (0,0), (-1,-1), 0.5, colors.black),
-            ('FONTNAME', (0,0), (-1,-1), 'DejaVu'),
+            ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
             ('ALIGN', (0,0), (-1,-1), 'CENTER'),
         ]))
         elements.append(t)
@@ -125,6 +117,7 @@ if "S" not in st.session_state:
         }
 
 S = st.session_state["S"]
+
 st.set_page_config(page_title="Zawody wędkarskie", layout="wide")
 st.markdown(
     "<h1 style='font-size:28px; text-align:center'>🎣🏆 Panel organizatora zawodów wędkarskich by Wojtek Mierzejewski 🏆🎣</h1>",
@@ -134,8 +127,7 @@ st.markdown(
     "<h1 style='font-size:14px; text-align:center'>© Wojciech Mierzejewski 2026</h1>",
     unsafe_allow_html=True
 )
-
-# --- Reset ---
+# --- PRZYCISK RESET ---
 st.button("🧹 Resetuj zawody", on_click=reset_zawody)
 
 # --- ETAP 1: KONFIGURACJA ---
@@ -145,6 +137,7 @@ if S["etap"] == 1:
     S["liczba_zawodnikow"] = st.number_input("Liczba zawodników:", 1, 40, S["liczba_zawodnikow"] or 10)
     S["liczba_stanowisk"] = st.number_input("Liczba stanowisk na łowisku:", 1, 100, S["liczba_stanowisk"] or 10)
     S["liczba_sektorow"] = st.number_input("Liczba sektorów:", 1, 10, S["liczba_sektorow"] or 3)
+
     if st.button("➡️ Dalej – definiuj sektory"):
         S["etap"] = 2
         zapisz_dane(S)
@@ -152,24 +145,28 @@ if S["etap"] == 1:
 # --- ETAP 2: DEFINICJA SEKTORÓW ---
 elif S["etap"] == 2:
     st.markdown("<h3 style='font-size:20px'>📍 Krok 2: Definicja sektorów</h3>", unsafe_allow_html=True)
-    # Informacja o przewidywanej liczbie zawodników
-    base = S["liczba_zawodnikow"] // S["liczba_sektorow"]
-    remainder = S["liczba_zawodnikow"] % S["liczba_sektorow"]
-    info = []
-    for i in range(S["liczba_sektorow"]):
-        nazwa = chr(65 + i)
-        ilosc = base + (1 if i < remainder else 0)
-        info.append(f"Sektor {nazwa}: {ilosc} zawodników")
-    st.info("ℹ️ Przewidywana liczba zawodników na sektor:\n" + "\n".join(info))
-    if remainder != 0:
-        st.warning("⚠️ Nie wszystkie sektory mają równą liczbę zawodników. Jeden sektor może mieć o 1 zawodnika więcej.")
+
+    # Informacja o przewidywanej liczbie zawodników w sektorach
+    if S["liczba_zawodnikow"] > 0 and S["liczba_sektorow"] > 0:
+        base = S["liczba_zawodnikow"] // S["liczba_sektorow"]
+        remainder = S["liczba_zawodnikow"] % S["liczba_sektorow"]
+        zawodnicy_info = []
+        for i in range(S["liczba_sektorow"]):
+            nazwa = chr(65 + i)
+            ilosc = base + (1 if i < remainder else 0)
+            zawodnicy_info.append(f"Sektor {nazwa}: {ilosc} zawodników")
+        st.info("ℹ️ Przewidywana liczba zawodników na sektor:\n" + "\n".join(zawodnicy_info))
+        if remainder != 0:
+            st.warning(f"⚠️ Nie wszystkie sektory mają równą liczbę zawodników. Jeden sektor może mieć o 1 zawodnika więcej.")
 
     sektory = {}
     for i in range(S["liczba_sektorow"]):
         nazwa = chr(65 + i)
-        pola = st.text_input(f"Sektor {nazwa} – podaj stanowiska (np. 1,2,3):",
-                             value=",".join(map(str, S["sektory"].get(nazwa, []))),
-                             key=f"sektor_{nazwa}")
+        pola = st.text_input(
+            f"Sektor {nazwa} – podaj stanowiska (np. 1,2,3):",
+            value=",".join(map(str, S["sektory"].get(nazwa, []))),
+            key=f"sektor_{nazwa}"
+        )
         if pola.strip():
             try:
                 sektory[nazwa] = [int(x.strip()) for x in pola.split(",") if x.strip().isdigit()]
@@ -238,9 +235,11 @@ elif S["etap"] == 3:
     if S["zawodnicy"]:
         st.subheader("📋 Lista zawodników")
         for i, z in enumerate(S["zawodnicy"]):
-            col1, col2, col3, col4 = st.columns([2,1,1,1])
+            col1, col2, col3 = st.columns([2,1,1])
             with col1:
                 z["imie"] = st.text_input(f"Zawodnik {i+1}", z["imie"], key=f"imie_{i}")
+                # teraz pole wagi poniżej imienia
+                z["waga"] = st.number_input("Waga (g)", 0, 1000000, z["waga"], step=10, key=f"waga_{i}")
             with col2:
                 wszystkie_dozwolone = sorted(sum(S["sektory"].values(), []))
                 zajete = [x["stanowisko"] for j,x in enumerate(S["zawodnicy"]) if j!=i]
@@ -254,15 +253,15 @@ elif S["etap"] == 3:
                 z["stanowisko"] = st.selectbox("Stan.", dostepne, index=idx, key=f"stan_{i}")
             with col3:
                 st.write(f"**Sektor {z['sektor']}**")
-            with col4:
-                if st.button("🗑️ Usuń", key=f"del_{i}"):
-                    del S["zawodnicy"][i]
-                    zapisz_dane(S)
-                    st.experimental_rerun()
+            if st.button("🗑️ Usuń", key=f"del_{i}"):
+                del S["zawodnicy"][i]
+                zapisz_dane(S)
+                st.experimental_rerun()
 
 # --- ETAP 4: WPROWADZANIE WYNIKÓW I PODSUMOWANIE ---
 elif S["etap"] == 4:
     st.markdown("<h3 style='font-size:20px'>⚖️ Krok 4: Wprowadzenie wyników (waga ryb)</h3>", unsafe_allow_html=True)
+
     if not S["zawodnicy"]:
         st.warning("Brak zawodników. Wróć i dodaj ich najpierw.")
         if st.button("⬅️ Wróć do zawodników"):
@@ -270,17 +269,14 @@ elif S["etap"] == 4:
             zapisz_dane(S)
     else:
         for i,z in enumerate(S["zawodnicy"]):
-            col1, col2 = st.columns([3,1])
-            with col1:
-                st.write(f"**{z['imie']}**")
-            with col2:
-                z["waga"] = st.number_input("Waga (g)", 0, 10000000, z["waga"], step=10, key=f"waga_{i}")
+            st.write(f"**{z['imie']}** ({z['sektor']}, st. {z['stanowisko']})")
+            z["waga"] = st.number_input("Waga (g)", 0, 1000000, z["waga"], step=10, key=f"waga_{i}")
         zapisz_dane(S)
 
         df = pd.DataFrame(S["zawodnicy"])
         df["miejsce_w_sektorze"] = df.groupby("sektor")["waga"].rank(ascending=False, method="min")
 
-        # Ranking ogólny wg miejsc sektorowych
+        # --- Ranking ogólny wg miejsc sektorowych ---
         df_sorted = pd.DataFrame()
         for miejsce in sorted(df["miejsce_w_sektorze"].unique()):
             grupa = df[df["miejsce_w_sektorze"] == miejsce].sort_values(by="waga", ascending=False)
@@ -297,7 +293,6 @@ elif S["etap"] == 4:
             tabela = grupa.sort_values(by="waga", ascending=False)[["imie","stanowisko","waga","miejsce_w_sektorze","miejsce_ogolne"]]
             st.dataframe(tabela, hide_index=True)
 
-        st.info("ℹ️ Na telefonie po kliknięciu przycisku Pobierz PDF może pojawić się komunikat przeglądarki. Potwierdź go, aby pobrać plik.")
         pdf_bytes = generuj_pdf_reportlab(df_sorted, S.get("nazwa_zawodow", ""))
         st.download_button(
             label="💾 Pobierz wyniki jako PDF",
@@ -305,3 +300,9 @@ elif S["etap"] == 4:
             file_name="wyniki_zawodow.pdf",
             mime="application/pdf"
         )
+
+# --- Stopka ---
+st.markdown(
+    "<h1 style='font-size:14px; text-align:center'>© Wojciech Mierzejewski 2026</h1>",
+    unsafe_allow_html=True
+)
