@@ -275,7 +275,7 @@ if st.button("➡️ Przejdź do losowania stanowisk"):
         st.warning("⚠️ Najpierw uzupełnij sektory")
     else:
         st.session_state.etap = "losowanie"
- zapisz_dane(S)
+
 
 # ================================
 # ETAP 3: DODAWANIE ZAWODNIKÓW
