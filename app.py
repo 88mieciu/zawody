@@ -224,9 +224,7 @@ elif S["etap"] == 2:
             nazwa = chr(65 + i)
             ilosc = base + (1 if i < remainder else 0)
             zawodnicy_info.append(f"Sektor {nazwa}: {ilosc} zawodników")
-        st.info("ℹ️ Przewidywana liczba zawodników na sektor:
-" + "
-".join(zawodnicy_info))
+        st.info("ℹ️ Przewidywana liczba zawodników na sektor:\n" + "\n".join(zawodnicy_info))
         if remainder != 0:
             st.warning(f"⚠️ Nie wszystkie sektory mają równą liczbę zawodników. Jeden sektor może mieć o 1 zawodnika więcej.")
 
@@ -394,4 +392,3 @@ st.markdown(
     "<h1 style='font-size:14px; text-align:center'>© Wojciech Mierzejewski 2026</h1>",
     unsafe_allow_html=True
 )
-
