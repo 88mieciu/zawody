@@ -2,13 +2,14 @@ import streamlit as st
 import pandas as pd
 import json
 import os
+import io
 from reportlab.lib.pagesizes import A4
-from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib import colors
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfbase import pdfmetrics
-import io
+import base64
 
 # --- Ścieżka do pliku przechowującego dane ---
 DATA_FILE = "zawody_data.json"
@@ -42,25 +43,25 @@ def reset_zawody():
 
 def generuj_pdf_reportlab(df_sorted, nazwa_zawodow=""):
     buffer = io.BytesIO()
+    
+    # Rejestracja czcionki z polskimi znakami
+    pdfmetrics.registerFont(TTFont('DejaVu', 'DejaVuSans.ttf'))
+
     doc = SimpleDocTemplate(buffer, pagesize=A4)
     elements = []
-
-    # --- Czcionka z polskimi znakami ---
-    pdfmetrics.registerFont(TTFont('DejaVuSans', 'DejaVuSans.ttf'))
     styles = getSampleStyleSheet()
-    for key in styles.byName:
-        styles[key].fontName = 'DejaVuSans'
-    custom_h1 = ParagraphStyle('Heading1', parent=styles['Heading1'], fontName='DejaVuSans')
-    custom_h2 = ParagraphStyle('Heading2', parent=styles['Heading2'], fontName='DejaVuSans')
-    custom_h3 = ParagraphStyle('Heading3', parent=styles['Heading3'], fontName='DejaVuSans')
+    styles['Heading1'].fontName = 'DejaVu'
+    styles['Heading2'].fontName = 'DejaVu'
+    styles['Heading3'].fontName = 'DejaVu'
+    styles['Normal'].fontName = 'DejaVu'
 
-    # --- Nagłówek z nazwą zawodów ---
+    # Nagłówek
     if nazwa_zawodow:
-        elements.append(Paragraph(f"🏆 {nazwa_zawodow}", custom_h1))
+        elements.append(Paragraph(f"🏆 {nazwa_zawodow}", styles['Heading1']))
         elements.append(Spacer(1, 15))
 
-    # --- Ranking ogólny ---
-    elements.append(Paragraph("📊 Ranking końcowy (wszyscy zawodnicy)", custom_h2))
+    # Ranking ogólny
+    elements.append(Paragraph("📊 Ranking końcowy (wszyscy zawodnicy)", styles['Heading2']))
     elements.append(Spacer(1, 10))
     data = [["Miejsce", "Imię", "Sektor", "Stanowisko", "Waga", "Miejsce w sektorze"]]
     for _, row in df_sorted.iterrows():
@@ -76,17 +77,17 @@ def generuj_pdf_reportlab(df_sorted, nazwa_zawodow=""):
     t.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
         ('GRID', (0,0), (-1,-1), 0.5, colors.black),
-        ('FONTNAME', (0,0), (-1,-1), 'DejaVuSans'),
+        ('FONTNAME', (0,0), (-1,-1), 'DejaVu'),
         ('ALIGN', (0,0), (-1,-1), 'CENTER'),
     ]))
     elements.append(t)
     elements.append(Spacer(1, 20))
 
-    # --- Podsumowanie sektorów z miejscem ogólnym ---
-    elements.append(Paragraph("📌 Podsumowanie sektorów", custom_h2))
+    # Podsumowanie sektorów
+    elements.append(Paragraph("📌 Podsumowanie sektorów", styles['Heading2']))
     elements.append(Spacer(1, 10))
     for sektor, grupa in df_sorted.groupby("sektor"):
-        elements.append(Paragraph(f"Sektor {sektor}", custom_h3))
+        elements.append(Paragraph(f"Sektor {sektor}", styles['Heading3']))
         data = [["Imię", "Stanowisko", "Waga", "Miejsce w sektorze", "Miejsce ogólne"]]
         for _, row in grupa.sort_values(by="waga", ascending=False).iterrows():
             data.append([
@@ -100,7 +101,7 @@ def generuj_pdf_reportlab(df_sorted, nazwa_zawodow=""):
         t.setStyle(TableStyle([
             ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
             ('GRID', (0,0), (-1,-1), 0.5, colors.black),
-            ('FONTNAME', (0,0), (-1,-1), 'DejaVuSans'),
+            ('FONTNAME', (0,0), (-1,-1), 'DejaVu'),
             ('ALIGN', (0,0), (-1,-1), 'CENTER'),
         ]))
         elements.append(t)
@@ -109,6 +110,11 @@ def generuj_pdf_reportlab(df_sorted, nazwa_zawodow=""):
     doc.build(elements)
     buffer.seek(0)
     return buffer
+
+def pobierz_pdf_link(pdf_bytes, nazwa_pliku="wyniki_zawodow.pdf"):
+    b64 = base64.b64encode(pdf_bytes.read()).decode()
+    href = f'<a href="data:application/pdf;base64,{b64}" download="{nazwa_pliku}">💾 Pobierz wyniki jako PDF</a>'
+    st.markdown(href, unsafe_allow_html=True)
 
 # --- Inicjalizacja stanu ---
 if "S" not in st.session_state:
@@ -129,7 +135,7 @@ if "S" not in st.session_state:
 S = st.session_state["S"]
 
 st.set_page_config(page_title="Zawody wędkarskie", layout="wide")
-st.markdown("<h1 style='font-size:28px'>🎣🏆 Panel organizatora zawodów wędkarskich by Wojtek Mierzejewski 2026 🏆🎣</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='font-size:28px'>🎣 Panel organizatora zawodów wędkarskich by Wojtek Mierzejewski</h1>", unsafe_allow_html=True)
 
 # --- PRZYCISK RESET ---
 st.button("🧹 Resetuj zawody", on_click=reset_zawody)
@@ -238,20 +244,11 @@ elif S["etap"] == 3:
     if S["zawodnicy"]:
         st.subheader("📋 Lista zawodników")
         for i, z in enumerate(S["zawodnicy"]):
-            col1, col2, col3, col4 = st.columns([2,1,1,1])
+            col1, col2, col3, col4 = st.columns([1.5,1,1,1])
             with col1:
-                z["imie"] = st.text_input(f"Zawodnik {i+1}", z["imie"], key=f"imie_{i}")
+                st.write(f"**{z['imie']}**")
             with col2:
-                wszystkie_dozwolone = sorted(sum(S["sektory"].values(), []))
-                zajete = [x["stanowisko"] for j,x in enumerate(S["zawodnicy"]) if j!=i]
-                dostepne = [s for s in wszystkie_dozwolone if s not in zajete or s==z["stanowisko"]]
-                if z["stanowisko"] not in dostepne:
-                    dostepne = sorted(dostepne + [z["stanowisko"]]) if z["stanowisko"] else dostepne
-                try:
-                    idx = dostepne.index(z["stanowisko"])
-                except ValueError:
-                    idx = 0
-                z["stanowisko"] = st.selectbox("Stan.", dostepne, index=idx, key=f"stan_{i}")
+                z["waga"] = st.number_input("", 0, 100000, z["waga"], step=10, key=f"waga_{i}")
             with col3:
                 st.write(f"**Sektor {z['sektor']}**")
             with col4:
@@ -270,10 +267,12 @@ elif S["etap"] == 4:
             S["etap"] = 3
             zapisz_dane(S)
     else:
-        for i, z in enumerate(S["zawodnicy"]):
-            st.write("---")
-            st.write(f"**{z['imie']} ({z['sektor']}, st. {z['stanowisko']})**")
-            z["waga"] = st.number_input("Waga (g)", 0, 100000, z["waga"], step=10, key=f"waga_{i}")
+        for i,z in enumerate(S["zawodnicy"]):
+            col1, col2 = st.columns([1.5,1])
+            with col1:
+                st.write(f"**{z['imie']}**")
+            with col2:
+                z["waga"] = st.number_input("", 0, 100000, z["waga"], step=10, key=f"waga_{i}")
         zapisz_dane(S)
 
         df = pd.DataFrame(S["zawodnicy"])
@@ -284,7 +283,6 @@ elif S["etap"] == 4:
         for miejsce in sorted(df["miejsce_w_sektorze"].unique()):
             grupa = df[df["miejsce_w_sektorze"] == miejsce].sort_values(by="waga", ascending=False)
             df_sorted = pd.concat([df_sorted, grupa])
-
         df_sorted["miejsce_ogolne"] = range(1, len(df_sorted)+1)
 
         st.markdown("<h4 style='font-size:18px'>📊 Ranking końcowy (wszyscy zawodnicy)</h4>", unsafe_allow_html=True)
@@ -297,9 +295,4 @@ elif S["etap"] == 4:
             st.dataframe(tabela, hide_index=True)
 
         pdf_bytes = generuj_pdf_reportlab(df_sorted, S.get("nazwa_zawodow", ""))
-        st.download_button(
-            label="💾 Pobierz wyniki jako PDF",
-            data=pdf_bytes,
-            file_name="wyniki_zawodow.pdf",
-            mime="application/pdf"
-        )
+        pobierz_pdf_link(pdf_bytes, "wyniki_zawodow.pdf")
