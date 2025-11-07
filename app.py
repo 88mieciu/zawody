@@ -90,7 +90,7 @@ def parse_positions(input_str):
     return uniq
 
 
-def parse_big_fish(input_str):
+def parse_big_fish_sum(input_str):
     """
     Parsuje ciąg wag oddzielonych przecinkami, np. "500,1200, 350"
     Zwraca tuple (sum_of_valid_weights:int, invalid_parts:list)
@@ -136,12 +136,12 @@ def generuj_pdf_reportlab(df_sorted, nazwa_zawodow=""):
         elements.append(Paragraph(f"🏆 {nazwa_zawodow}", h1))
         elements.append(Spacer(1, 12))
 
-    # --- Ranking ogólny ---
+    # --- Ranking ogólny (pokazuje tylko końcową wagę) ---
     h2 = styles['Heading2']
     elements.append(Paragraph("📊 Ranking końcowy (wszyscy zawodnicy)", h2))
     elements.append(Spacer(1, 8))
 
-    data = [["Miejsce", "Imię", "Sektor", "Stanowisko", "Waga", "Big fish (suma)", "Waga całkowita", "Miejsce w sektorze"]]
+    data = [["Miejsce", "Imię", "Sektor", "Stanowisko", "Waga (g)", "Miejsce w sektorze"]]
     for _, row in df_sorted.iterrows():
         data.append([
             int(row['miejsce_ogolne']),
@@ -149,8 +149,6 @@ def generuj_pdf_reportlab(df_sorted, nazwa_zawodow=""):
             row['sektor'],
             row['stanowisko'],
             row.get('waga', 0),
-            row.get('big_fish_sum', 0),
-            row.get('waga_total', row.get('waga',0)),
             int(row['miejsce_w_sektorze'])
         ])
     t = Table(data, repeatRows=1)
@@ -165,19 +163,17 @@ def generuj_pdf_reportlab(df_sorted, nazwa_zawodow=""):
     elements.append(t)
     elements.append(Spacer(1, 16))
 
-    # --- Podsumowanie sektorów ---
+    # --- Podsumowanie sektorów (pokazuje tylko końcową wagę) ---
     elements.append(Paragraph("📌 Podsumowanie sektorów", h2))
     elements.append(Spacer(1, 8))
     for sektor, grupa in df_sorted.groupby("sektor"):
         elements.append(Paragraph(f"Sektor {sektor}", styles['Heading3']))
-        data = [["Imię", "Stanowisko", "Waga", "Big fish (suma)", "Waga całkowita", "Miejsce w sektorze", "Miejsce ogólne"]]
-        for _, row in grupa.sort_values(by="waga_total", ascending=False).iterrows():
+        data = [["Imię", "Stanowisko", "Waga (g)", "Miejsce w sektorze", "Miejsce ogólne"]]
+        for _, row in grupa.sort_values(by="waga", ascending=False).iterrows():
             data.append([
                 row['imie'],
                 row['stanowisko'],
                 row.get('waga', 0),
-                row.get('big_fish_sum', 0),
-                row.get('waga_total', row.get('waga',0)),
                 int(row['miejsce_w_sektorze']),
                 int(row['miejsce_ogolne'])
             ])
@@ -216,6 +212,7 @@ if "S" not in st.session_state:
 
 S = st.session_state["S"]
 
+# ustawienia strony
 st.set_page_config(page_title="Zawody wędkarskie", layout="wide")
 st.markdown(
     "<h1 style='font-size:28px; text-align:center'>🎣🏆 Panel organizatora zawodów wędkarskich 🏆🎣</h1>",
@@ -265,7 +262,6 @@ elif S["etap"] == 2:
     for i in range(S["liczba_sektorow"]):
         nazwa = chr(65 + i)
         current = S["sektory"].get(nazwa, [])
-        # zamieniamy listę na czytelny string zakresów (opcjonalnie) – tutaj wyświetlimy po prostu przecinki
         default = ",".join(map(str, current)) if current else ""
         pola = st.text_input(f"Sektor {nazwa} – podaj stanowiska (np. 1-5,7,10-12):", value=default, key=f"sektor_{nazwa}")
         sektory_tmp[nazwa] = pola
@@ -343,9 +339,9 @@ elif S["etap"] == 3:
                 st.warning("Podaj imię i nazwisko.")
             else:
                 sek = next((k for k, v in S["sektory"].items() if stano in v), None)
-                # dodajemy pole big_fish jako string (puste domyślnie)
+                # dodajemy pole big_fish_raw jako string (puste domyślnie)
                 S["zawodnicy"].append(
-                    {"imie": imie.strip(), "stanowisko": stano, "sektor": sek, "waga": 0, "big_fish": ""}
+                    {"imie": imie.strip(), "stanowisko": stano, "sektor": sek, "waga": 0, "big_fish_raw": ""}
                 )
                 zapisz_dane(S)
 
@@ -356,7 +352,10 @@ elif S["etap"] == 3:
             with col1:
                 z["imie"] = st.text_input(f"Zawodnik {i+1}", z["imie"], key=f"imie_{i}")
                 # pole wagi pod imieniem
-                z["waga"] = st.number_input("Waga (g)", 0, 1000000, z["waga"], step=10, key=f"waga_{i}")
+                z["waga"] = st.number_input("Waga główna (g)", 0, 1000000, z.get("waga", 0), step=10, key=f"waga_{i}")
+                # pole big fish (surowy string) - zapisujemy surowy wpis
+                z["big_fish_raw"] = st.text_input("Big fish (g) — wpisz wagi oddzielone przecinkami (np. 500,1200):", value=z.get("big_fish_raw",""), key=f"bigfish_{i}")
+                # NIE wyświetlamy sum big fish ani totalu tutaj
             with col2:
                 wszystkie_dozwolone = sorted(sum(S["sektory"].values(), []))
                 zajete = [x["stanowisko"] for j,x in enumerate(S["zawodnicy"]) if j!=i]
@@ -385,51 +384,46 @@ elif S["etap"] == 4:
             S["etap"] = 3
             zapisz_dane(S)
     else:
-        # wprowadzanie wag i big_fish (tekstowe)
+        # Wprowadzanie wag i big fish: zapisujemy surowe dane, przeliczamy sumę i dodajemy do z['waga']
         for i, z in enumerate(S["zawodnicy"]):
             st.write(f"**{z['imie']}** ({z['sektor']}, st. {z['stanowisko']})")
-            z["waga"] = st.number_input("Waga (g)", 0, 1000000, z.get("waga", 0), step=10, key=f"waga_{i}")
-            # pole big_fish: wpisy oddzielone przecinkami, np. "500,1200"
-            z["big_fish"] = st.text_input("Big fish (g) — wpisz wagi oddzielone przecinkami (np. 500,1200):", value=z.get("big_fish",""), key=f"bigfish_{i}")
-            # policz sumę big fish i pokaż wynik + ewentualne niepoprawne części
-            big_sum, invalid = parse_big_fish(z.get("big_fish",""))
+            # waga główna (edytowalna)
+            waga_bazowa = st.number_input("Waga główna (g)", 0, 10000000, z.get("waga", 0), step=10, key=f"waga_bazowa_{i}")
+            # big fish raw (surowy string)
+            big_raw = st.text_input("Big fish (g) — wpisz wagi oddzielone przecinkami (np. 500,1200):", value=z.get("big_fish_raw",""), key=f"big_raw_{i}")
+            # zapisz surowy string
+            z["big_fish_raw"] = big_raw
+
+            # oblicz sumę big fish (ale NIE wyświetlamy sumy ani totalu użytkownikowi)
+            big_sum, invalid = parse_big_fish_sum(big_raw)
+            # jeśli są nieprawidłowe części, pokaż ostrzeżenie ale nie blokuj
             if invalid:
                 st.warning(f"Nieprawidłowe wartości Big fish dla {z['imie']}: {invalid} — zostaną zignorowane przy sumowaniu.")
-            st.write(f"Big fish suma: **{big_sum} g** — Waga całkowita (waga + big fish): **{z['waga'] + big_sum} g**")
+            # finalna waga zapisana do z['waga'] — nadpisujemy waga bazowa + suma big fish
+            z["waga"] = waga_bazowa + big_sum
+
         zapisz_dane(S)
 
-        # przygotowanie DataFrame z polami big_fish_sum i waga_total
+        # Przygotowanie DataFrame na potrzeby rankingów:
         df = pd.DataFrame(S["zawodnicy"]).copy()
-        # obliczamy big_fish_sum dla każdego wiersza (bez modyfikowania S tu, ale zapisaliśmy raw string powyżej)
-        big_sums = []
-        invalids = {}
-        for idx, row in df.iterrows():
-            s_raw = row.get("big_fish", "")
-            s_sum, s_invalid = parse_big_fish(s_raw)
-            big_sums.append(s_sum)
-            if s_invalid:
-                invalids[idx] = s_invalid
-        df["big_fish_sum"] = big_sums
-        df["waga_total"] = df["waga"] + df["big_fish_sum"]
+        # miejsce w sektorze liczone po z['waga'] (już zawiera big fish sumę)
+        df["miejsce_w_sektorze"] = df.groupby("sektor")["waga"].rank(ascending=False, method="min")
 
-        # miejscowanie wg waga_total wewnątrz sektora
-        df["miejsce_w_sektorze"] = df.groupby("sektor")["waga_total"].rank(ascending=False, method="min")
-
-        # Ranking ogólny wg miejsc sektorowych (tak jak wcześniej: 1-ki sektorowe najpierw)
+        # Ranking ogólny wg miejsc sektorowych (1-ki sektorowe najpierw)
         df_sorted = pd.DataFrame()
         for miejsce in sorted(df["miejsce_w_sektorze"].unique()):
-            grupa = df[df["miejsce_w_sektorze"] == miejsce].sort_values(by="waga_total", ascending=False)
+            grupa = df[df["miejsce_w_sektorze"] == miejsce].sort_values(by="waga", ascending=False)
             df_sorted = pd.concat([df_sorted, grupa])
         df_sorted["miejsce_ogolne"] = range(1, len(df_sorted)+1)
 
-        # Wyświetlenie tabel wyników: pokazujemy teraz big_fish_sum i waga_total
+        # Wyświetlenie tabel wyników: pokazujemy tylko końcową wagę (z['waga'])
         st.markdown("<h4 style='font-size:18px'>📊 Ranking końcowy (wszyscy zawodnicy)</h4>", unsafe_allow_html=True)
-        st.dataframe(df_sorted[["miejsce_ogolne","imie","sektor","stanowisko","waga","big_fish_sum","waga_total","miejsce_w_sektorze"]], hide_index=True)
+        st.dataframe(df_sorted[["miejsce_ogolne","imie","sektor","stanowisko","waga","miejsce_w_sektorze"]], hide_index=True)
 
         st.markdown("<h4 style='font-size:18px'>📌 Podsumowanie sektorów</h4>", unsafe_allow_html=True)
         for sektor, grupa in df_sorted.groupby("sektor"):
             st.write(f"**Sektor {sektor}**")
-            tabela = grupa.sort_values(by="waga_total", ascending=False)[["imie","stanowisko","waga","big_fish_sum","waga_total","miejsce_w_sektorze","miejsce_ogolne"]]
+            tabela = grupa.sort_values(by="waga", ascending=False)[["imie","stanowisko","waga","miejsce_w_sektorze","miejsce_ogolne"]]
             st.dataframe(tabela, hide_index=True)
 
         st.info("ℹ️ Na telefonie po kliknięciu przycisku Pobierz PDF może pojawić się komunikat przeglądarki. Potwierdź go, aby pobrać plik.")
