@@ -120,7 +120,7 @@ S = st.session_state["S"]
 
 st.set_page_config(page_title="Zawody wędkarskie", layout="wide")
 st.markdown(
-    "<h1 style='font-size:28px; text-align:center'>🎣🏆 Panel organizatora zawodów wędkarskich by Wojtek Mierzejewski 🏆🎣</h1>",
+    "<h1 style='font-size:28px; text-align:center'>🎣🏆 Panel organizatora zawodów wędkarskich 🏆🎣</h1>",
     unsafe_allow_html=True
 )
 st.markdown(
