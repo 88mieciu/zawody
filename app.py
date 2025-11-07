@@ -126,7 +126,8 @@ if "S" not in st.session_state:
 
 S = st.session_state["S"]
 st.set_page_config(page_title="Zawody wędkarskie", layout="wide")
-st.markdown("<h1 style='font-size:28px'>🎣 Panel organizatora zawodów wędkarskich by Wojtek Mierzejewski</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='font-size:28px'>🎣🏆 Panel organizatora zawodów wędkarskich by Wojtek Mierzejewski 🏆🎣</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='font-size:14px'>copyright Wojciech Mierzejewski 2026</h1>", unsafe_allow_html=True)
 
 # --- Reset ---
 st.button("🧹 Resetuj zawody", on_click=reset_zawody)
