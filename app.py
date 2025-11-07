@@ -10,16 +10,27 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 import io
 
-# --- Rejestracja czcionki obsługującej polskie znaki ---
-pdfmetrics.registerFont(TTFont('DejaVu', 'DejaVuSans.ttf'))
-
-# --- Ścieżka do pliku przechowującego dane ---
+# --- Ustawienia pliku danych i czcionki ---
 DATA_FILE = "zawody_data.json"
+FONT_FILE = "DejaVuSans.ttf"  # umieść plik czcionki w katalogu aplikacji
+
+# --- Rejestracja czcionki (jeśli jest dostępna) ---
+if os.path.exists(FONT_FILE):
+    try:
+        pdfmetrics.registerFont(TTFont('DejaVu', FONT_FILE))
+        FONT_AVAILABLE = True
+    except Exception as e:
+        FONT_AVAILABLE = False
+        print("Nie udało się zarejestrować czcionki DejaVu:", e)
+else:
+    FONT_AVAILABLE = False
 
 # --- Funkcje pomocnicze ---
+
 def zapisz_dane(S):
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(S, f, ensure_ascii=False, indent=2)
+
 
 def wczytaj_dane():
     if os.path.exists(DATA_FILE):
@@ -29,6 +40,7 @@ def wczytaj_dane():
         except:
             return None
     return None
+
 
 def reset_zawody():
     st.session_state["S"] = {
@@ -41,27 +53,67 @@ def reset_zawody():
         "etap": 1
     }
     if os.path.exists(DATA_FILE):
-        os.remove(DATA_FILE)
+        try:
+            os.remove(DATA_FILE)
+        except:
+            pass
 
-# --- Funkcja generowania PDF z polskimi znakami ---
+
+def parse_positions(input_str):
+    """
+    Parsuje ciąg taki jak "1-5,7,10-12" na listę unikalnych intów: [1,2,3,4,5,7,10,11,12]
+    Zwraca listę intów lub rzuca ValueError przy niepoprawnym formacie.
+    """
+    if not input_str or not input_str.strip():
+        return []
+    parts = [p.strip() for p in input_str.split(',') if p.strip()]
+    positions = []
+    for p in parts:
+        if '-' in p:
+            bounds = p.split('-')
+            if len(bounds) != 2:
+                raise ValueError(f"Niepoprawny zakres: '{p}'")
+            start, end = bounds
+            if not (start.strip().isdigit() and end.strip().isdigit()):
+                raise ValueError(f"Zakres musi zawierać liczby: '{p}'")
+            a = int(start.strip())
+            b = int(end.strip())
+            if a > b:
+                raise ValueError(f"W zakresie początek nie może być większy niż koniec: '{p}'")
+            positions.extend(list(range(a, b+1)))
+        else:
+            if not p.isdigit():
+                raise ValueError(f"Niepoprawny numer stanowiska: '{p}'")
+            positions.append(int(p))
+    # unikalne, posortowane
+    uniq = sorted(set(positions))
+    return uniq
+
+
 def generuj_pdf_reportlab(df_sorted, nazwa_zawodow=""):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4)
     elements = []
     styles = getSampleStyleSheet()
 
-    # Nagłówek z nazwą zawodów
-    if nazwa_zawodow:
-        header_style = styles['Heading1']
-        header_style.fontName = 'DejaVu'
-        elements.append(Paragraph(f"🏆 {nazwa_zawodow}", header_style))
-        elements.append(Spacer(1, 15))
+    # jeżeli zarejestrowaliśmy czcionkę, ustawiamy jej użycie w stylach
+    if FONT_AVAILABLE:
+        for name in ['Heading1','Heading2','Heading3','Normal']:
+            try:
+                styles[name].fontName = 'DejaVu'
+            except Exception:
+                pass
 
-    # Ranking ogólny
-    heading_style = styles['Heading2']
-    heading_style.fontName = 'DejaVu'
-    elements.append(Paragraph("📊 Ranking końcowy (wszyscy zawodnicy)", heading_style))
-    elements.append(Spacer(1, 10))
+    # --- Nagłówek z nazwą zawodów ---
+    if nazwa_zawodow:
+        h1 = styles['Heading1']
+        elements.append(Paragraph(f"🏆 {nazwa_zawodow}", h1))
+        elements.append(Spacer(1, 12))
+
+    # --- Ranking ogólny ---
+    h2 = styles['Heading2']
+    elements.append(Paragraph("📊 Ranking końcowy (wszyscy zawodnicy)", h2))
+    elements.append(Spacer(1, 8))
 
     data = [["Miejsce", "Imię", "Sektor", "Stanowisko", "Waga", "Miejsce w sektorze"]]
     for _, row in df_sorted.iterrows():
@@ -74,18 +126,20 @@ def generuj_pdf_reportlab(df_sorted, nazwa_zawodow=""):
             int(row['miejsce_w_sektorze'])
         ])
     t = Table(data, repeatRows=1)
-    t.setStyle(TableStyle([
+    t_style = [
         ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
         ('GRID', (0,0), (-1,-1), 0.5, colors.black),
-        ('FONTNAME', (0,0), (-1,-1), 'DejaVu'),
         ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-    ]))
+    ]
+    if FONT_AVAILABLE:
+        t_style.append(('FONTNAME', (0,0), (-1,-1), 'DejaVu'))
+    t.setStyle(TableStyle(t_style))
     elements.append(t)
-    elements.append(Spacer(1, 20))
+    elements.append(Spacer(1, 16))
 
-    # Podsumowanie sektorów
-    elements.append(Paragraph("📌 Podsumowanie sektorów", heading_style))
-    elements.append(Spacer(1, 10))
+    # --- Podsumowanie sektorów ---
+    elements.append(Paragraph("📌 Podsumowanie sektorów", h2))
+    elements.append(Spacer(1, 8))
     for sektor, grupa in df_sorted.groupby("sektor"):
         elements.append(Paragraph(f"Sektor {sektor}", styles['Heading3']))
         data = [["Imię", "Stanowisko", "Waga", "Miejsce w sektorze", "Miejsce ogólne"]]
@@ -98,18 +152,21 @@ def generuj_pdf_reportlab(df_sorted, nazwa_zawodow=""):
                 int(row['miejsce_ogolne'])
             ])
         t = Table(data, repeatRows=1)
-        t.setStyle(TableStyle([
+        t_style = [
             ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
             ('GRID', (0,0), (-1,-1), 0.5, colors.black),
-            ('FONTNAME', (0,0), (-1,-1), 'DejaVu'),
             ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-        ]))
+        ]
+        if FONT_AVAILABLE:
+            t_style.append(('FONTNAME', (0,0), (-1,-1), 'DejaVu'))
+        t.setStyle(TableStyle(t_style))
         elements.append(t)
-        elements.append(Spacer(1, 15))
+        elements.append(Spacer(1, 12))
 
     doc.build(elements)
     buffer.seek(0)
     return buffer
+
 
 # --- Inicjalizacja stanu ---
 if "S" not in st.session_state:
@@ -134,10 +191,10 @@ st.markdown(
     "<h1 style='font-size:28px; text-align:center'>🎣🏆 Panel organizatora zawodów wędkarskich 🏆🎣</h1>",
     unsafe_allow_html=True
 )
-st.markdown(
-    "<h1 style='font-size:14px; text-align:center'>© Wojciech Mierzejewski 2026</h1>",
-    unsafe_allow_html=True
-)
+
+# informacja o braku czcionki (jeśli nie ma pliku)
+if not FONT_AVAILABLE:
+    st.warning("Aby PDF poprawnie wyświetlał polskie znaki, umieść plik 'DejaVuSans.ttf' w katalogu aplikacji.")
 
 # --- PRZYCISK RESET ---
 st.button("🧹 Resetuj zawody", on_click=reset_zawody)
@@ -146,18 +203,19 @@ st.button("🧹 Resetuj zawody", on_click=reset_zawody)
 if S["etap"] == 1:
     st.markdown("<h3 style='font-size:20px'>⚙️ Krok 1: Ustawienia zawodów</h3>", unsafe_allow_html=True)
     S["nazwa_zawodow"] = st.text_input("Nazwa zawodów:", S.get("nazwa_zawodow", ""))
-    S["liczba_zawodnikow"] = st.number_input("Liczba zawodników:", 1, 40, S["liczba_zawodnikow"] or 10)
-    S["liczba_stanowisk"] = st.number_input("Liczba stanowisk na łowisku:", 1, 100, S["liczba_stanowisk"] or 10)
-    S["liczba_sektorow"] = st.number_input("Liczba sektorów:", 1, 10, S["liczba_sektorow"] or 3)
+    S["liczba_zawodnikow"] = st.number_input("Liczba zawodników:", 1, 200, S["liczba_zawodnikow"] or 10)
+    S["liczba_stanowisk"] = st.number_input("Liczba stanowisk na łowisku:", 1, 1000, S["liczba_stanowisk"] or 10)
+    S["liczba_sektorow"] = st.number_input("Liczba sektorów:", 1, 50, S["liczba_sektorow"] or 3)
 
     if st.button("➡️ Dalej – definiuj sektory"):
         S["etap"] = 2
         zapisz_dane(S)
 
-# --- ETAP 2: DEFINICJA SEKTORÓW ---
+# --- ETAP 2: DEFINICJA SEKTORÓW (z obsługą zakresów) ---
 elif S["etap"] == 2:
     st.markdown("<h3 style='font-size:20px'>📍 Krok 2: Definicja sektorów</h3>", unsafe_allow_html=True)
 
+    # Informacja o przewidywanej liczbie zawodników w sektorach
     if S["liczba_zawodnikow"] > 0 and S["liczba_sektorow"] > 0:
         base = S["liczba_zawodnikow"] // S["liczba_sektorow"]
         remainder = S["liczba_zawodnikow"] % S["liczba_sektorow"]
@@ -166,37 +224,56 @@ elif S["etap"] == 2:
             nazwa = chr(65 + i)
             ilosc = base + (1 if i < remainder else 0)
             zawodnicy_info.append(f"Sektor {nazwa}: {ilosc} zawodników")
-        st.info("ℹ️ Przewidywana liczba zawodników na sektor:\n" + "\n".join(zawodnicy_info))
+        st.info("ℹ️ Przewidywana liczba zawodników na sektor:
+" + "
+".join(zawodnicy_info))
         if remainder != 0:
             st.warning(f"⚠️ Nie wszystkie sektory mają równą liczbę zawodników. Jeden sektor może mieć o 1 zawodnika więcej.")
 
-    sektory = {}
+    st.markdown("_W polu możesz wpisać pojedyncze numery i zakresy, np.: `1-5,7,10-12`_")
+
+    sektory_tmp = {}
+    # pokaż istniejące wartości jeśli są
     for i in range(S["liczba_sektorow"]):
         nazwa = chr(65 + i)
-        pola = st.text_input(
-            f"Sektor {nazwa} – podaj stanowiska (np. 1,2,3):",
-            value=",".join(map(str, S["sektory"].get(nazwa, []))),
-            key=f"sektor_{nazwa}"
-        )
-        if pola.strip():
-            try:
-                sektory[nazwa] = [int(x.strip()) for x in pola.split(",") if x.strip().isdigit()]
-            except ValueError:
-                st.warning(f"⚠️ Błędne dane w sektorze {nazwa}. Użyj tylko liczb i przecinków.")
+        current = S["sektory"].get(nazwa, [])
+        # zamieniamy listę na czytelny string zakresów (opcjonalnie) – tutaj wyświetlimy po prostu przecinki
+        default = ",".join(map(str, current)) if current else ""
+        pola = st.text_input(f"Sektor {nazwa} – podaj stanowiska (np. 1-5,7,10-12):", value=default, key=f"sektor_{nazwa}")
+        sektory_tmp[nazwa] = pola
 
     col1, col2 = st.columns([1,1])
     with col1:
         if st.button("💾 Zapisz sektory"):
-            wszystkie = []
-            for s in sektory.values():
-                wszystkie.extend(s)
-            duplikaty = [x for x in wszystkie if wszystkie.count(x) > 1]
-            if duplikaty:
-                st.error(f"Powtórzone stanowiska: {sorted(set(duplikaty))}")
+            # spróbuj sparsować wszystkie sektory i wykryć duplikaty
+            parsed = {}
+            all_positions = []
+            error = False
+            error_msgs = []
+            for nazwa, tekst in sektory_tmp.items():
+                try:
+                    positions = parse_positions(tekst)
+                except ValueError as e:
+                    error = True
+                    error_msgs.append(f"Sektor {nazwa}: {e}")
+                    positions = []
+                parsed[nazwa] = positions
+                all_positions.extend(positions)
+
+            # sprawdź duplikaty między sektorami
+            dup = sorted([x for x in set(all_positions) if all_positions.count(x) > 1])
+            if dup:
+                error = True
+                error_msgs.append(f"Powtórzone stanowiska między sektorami: {dup}")
+
+            if error:
+                for m in error_msgs:
+                    st.error(m)
             else:
-                S["sektory"] = sektory
+                S["sektory"] = parsed
                 S["etap"] = 3
                 zapisz_dane(S)
+                st.success("Sektory zapisane.")
     with col2:
         if st.button("⬅️ Wstecz"):
             S["etap"] = 1
@@ -249,6 +326,7 @@ elif S["etap"] == 3:
             col1, col2, col3 = st.columns([2,1,1])
             with col1:
                 z["imie"] = st.text_input(f"Zawodnik {i+1}", z["imie"], key=f"imie_{i}")
+                # pole wagi pod imieniem
                 z["waga"] = st.number_input("Waga (g)", 0, 1000000, z["waga"], step=10, key=f"waga_{i}")
             with col2:
                 wszystkie_dozwolone = sorted(sum(S["sektory"].values(), []))
@@ -302,6 +380,7 @@ elif S["etap"] == 4:
             tabela = grupa.sort_values(by="waga", ascending=False)[["imie","stanowisko","waga","miejsce_w_sektorze","miejsce_ogolne"]]
             st.dataframe(tabela, hide_index=True)
 
+        st.info("ℹ️ Na telefonie po kliknięciu przycisku Pobierz PDF może pojawić się komunikat przeglądarki. Potwierdź go, aby pobrać plik.")
         pdf_bytes = generuj_pdf_reportlab(df_sorted, S.get("nazwa_zawodow", ""))
         st.download_button(
             label="💾 Pobierz wyniki jako PDF",
@@ -315,3 +394,4 @@ st.markdown(
     "<h1 style='font-size:14px; text-align:center'>© Wojciech Mierzejewski 2026</h1>",
     unsafe_allow_html=True
 )
+
