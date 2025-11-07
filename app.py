@@ -11,7 +11,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 import io
 
 # --- Rejestracja czcionki obsługującej polskie znaki ---
-# Upewnij się, że plik DejaVuSans.ttf jest w katalogu aplikacji lub podaj pełną ścieżkę.
+# Upewnij się, że plik DejaVuSans.ttf jest w katalogu aplikacji (albo zmień ścieżkę).
 pdfmetrics.registerFont(TTFont('DejaVu', 'DejaVuSans.ttf'))
 
 # --- Ścieżka do pliku przechowującego dane ---
@@ -20,15 +20,9 @@ DATA_FILE = "zawody_data.json"
 # ---------------------------------------------------------
 # Funkcja obsługująca zakresy stanowisk typu:
 #    1-5, 1,2,3, 1-3,7,10-12
+# Zwraca listę int bez duplikatów w kolejności wystąpienia.
 # ---------------------------------------------------------
 def parse_stanowiska(text):
-    """
-    Parsuje ciąg stanowisk, obsługując formaty:
-    - '1,2,3'
-    - '1-5'
-    - '1-3, 7, 10-12'
-    Zwraca listę int (bez duplikatów, nieposortowana).
-    """
     stanowiska = []
     if not isinstance(text, str):
         return stanowiska
@@ -43,11 +37,12 @@ def parse_stanowiska(text):
                 if start <= end:
                     stanowiska.extend(range(start, end + 1))
             except Exception:
-                # Pomijamy błędnie sformatowane fragmenty
+                # Pomijamy fragmenty źle sformatowane
                 pass
         else:
             if p.isdigit():
                 stanowiska.append(int(p))
+
     # Usuń duplikaty zachowując porządek
     seen = set()
     wynik = []
@@ -135,7 +130,6 @@ def generuj_pdf_reportlab(df_sorted, nazwa_zawodow=""):
     elements.append(Paragraph("📌 Podsumowanie sektorów", heading_style))
     elements.append(Spacer(1, 10))
 
-    # Grupowanie po sektorach
     for sektor, grupa in df_sorted.groupby("sektor"):
         elements.append(Paragraph(f"Sektor {sektor}", styles['Heading3']))
         data = [["Imię", "Stanowisko", "Waga (g)", "Miejsce w sektorze", "Miejsce ogólne"]]
@@ -200,82 +194,80 @@ st.button("🧹 Resetuj zawody", on_click=reset_zawody)
 if S["etap"] == 1:
     st.markdown("<h3 style='font-size:20px'>⚙️ Krok 1: Ustawienia zawodów</h3>", unsafe_allow_html=True)
     S["nazwa_zawodow"] = st.text_input("Nazwa zawodów:", S.get("nazwa_zawodow", ""))
-    S["liczba_zawodnikow"] = st.number_input("Liczba zawodników:", 1, 40, S["liczba_zawodnikow"] or 10)
-    S["liczba_stanowisk"] = st.number_input("Liczba stanowisk na łowisku:", 1, 200, S["liczba_stanowisk"] or 10)
-    S["liczba_sektorow"] = st.number_input("Liczba sektorów:", 1, 26, S["liczba_sektorow"] or 3)
+    S["liczba_zawodnikow"] = st.number_input("Liczba zawodników:", 1, 1000, S["liczba_zawodnikow"] or 10)
+    S["liczba_stanowisk"] = st.number_input("Liczba stanowisk na łowisku:", 1, 2000, S["liczba_stanowisk"] or 10)
+    S["liczba_sektorow"] = st.number_input("Liczba sektorów:", 1, 100, S["liczba_sektorow"] or 3)
 
     if st.button("➡️ Dalej – definiuj sektory"):
         S["etap"] = 2
         zapisz_dane(S)
 
-###############################
-# ✅ KROK 2: DEFINICJA SEKTORÓW
-###############################
+# ================================
+# ETAP 2: DEFINICJA SEKTORÓW (z informacją przed polami)
+# ================================
+elif S["etap"] == 2:
+    st.markdown("<h3 style='font-size:20px'>📍 Krok 2: Definicja sektorów</h3>", unsafe_allow_html=True)
+    st.info("Wpisz stanowiska jako pojedyncze liczby (np. 3), zakresy (np. 1-5) lub mieszankę (np. 1-3,7,10-12).")
 
-st.header("📌 Krok 2: Definicja sektorów")
+    # ---------- nowy blok: informacje obliczane przed wpisywaniem ----------
+    if S["liczba_sektorow"] > 0 and S["liczba_zawodnikow"] > 0:
+        srednia = S["liczba_zawodnikow"] / S["liczba_sektorow"]
+        minimalna = S["liczba_zawodnikow"] // S["liczba_sektorow"]
+        st.info(
+            f"### 🔍 Informacje o podziale zawodników\n"
+            f"- Liczba zawodników: **{S['liczba_zawodnikow']}**\n"
+            f"- Liczba sektorów: **{S['liczba_sektorow']}**\n"
+            f"- Średnia liczba zawodników na sektor: **{srednia:.2f}**\n"
+            f"- Minimalna liczba stanowisk na sektor: **{minimalna}**\n\n"
+            "Możesz wpisać zakresy, np. `1-20` lub `1-10,15-20`."
+        )
+    # -----------------------------------------------------------------------
 
-def parse_stanowiska(text):
-    """
-    Parsuje ciąg stanowisk, obsługując formaty:
-    '1,2,3', '1-5', '1-3,7,10-12'
-    """
-    stanowiska = []
-    parts = text.split(",")
+    sektory = {}
+    zajete_stanowiska = set()   # do walidacji nakładających się stanowisk
 
-    for p in parts:
-        p = p.strip()
-        if "-" in p:
-            try:
-                start, end = p.split("-")
-                start, end = int(start), int(end)
-                if start <= end:
-                    stanowiska.extend(range(start, end + 1))
-            except:
-                pass
-        elif p.isdigit():
-            stanowiska.append(int(p))
+    for i in range(S["liczba_sektorow"]):
+        nazwa = chr(65 + i) if i < 26 else f"S{i}"  # zabezpieczenie na >26 sektorów
+        default_val = ",".join(str(x) for x in S["sektory"].get(nazwa, []))
 
-    return stanowiska
+        pola = st.text_input(
+            f"Sektor {nazwa} – podaj stanowiska (np. 1-5 lub 1-3,7,10-12):",
+            value=default_val,
+            key=f"sektor_{nazwa}"
+        )
 
+        if pola.strip():
+            wynik = parse_stanowiska(pola)
 
-sektory = {}
-zajete_stanowiska = set()  # walidacja nakładających się zakresów
+            if not wynik:
+                st.warning(f"⚠️ Nie rozpoznano stanowisk dla sektora {nazwa}. Użyj formatu np. 1-5 lub 1,3,5.")
+                continue
 
-for i in range(S["liczba_sektorow"]):
-    nazwa = chr(65 + i)
-    default_val = ",".join(str(x) for x in S["sektory"].get(nazwa, []))
+            kolizje = [x for x in wynik if x in zajete_stanowiska]
+            if kolizje:
+                st.error(f"🚫 Te stanowiska nakładają się z innym sektorem: {sorted(kolizje)}")
+            else:
+                sektory[nazwa] = wynik
+                zajete_stanowiska.update(wynik)
+                # Wyświetlenie informacji o liczbie stanowisk (po wpisaniu)
+                st.success(f"📏 W sektorze **{nazwa}** jest **{len(wynik)} stanowisk**, czyli **{len(wynik)} zawodników**.")
 
-    pola = st.text_input(
-        f"Sektor {nazwa} – podaj stanowiska (np. 1-5 lub 1-3,7,10-12):",
-        value=default_val,
-        key=f"sektor_{nazwa}"
-    )
-
-    if pola.strip():
-        wynik = parse_stanowiska(pola)
-        kolizje = [x for x in wynik if x in zajete_stanowiska]
-
-        if kolizje:
-            st.error(f"🚫 Te stanowiska nakładają się z innym sektorem: {kolizje}")
-        else:
-            sektory[nazwa] = wynik
-            zajete_stanowiska.update(wynik)
-
-            # ✅ INFORMACJA O LICZBIE ZAWODNIKÓW (CZYLI STANOWISK)
-            st.success(
-                f"📏 W sektorze **{nazwa}** jest **{len(wynik)} stanowisk**, "
-                f"czyli **{len(wynik)} zawodników**."
-            )
-
-# Zapis do sesji
-S["sektory"] = sektory
-
-if st.button("➡️ Przejdź do losowania stanowisk"):
-    if not sektory:
-        st.warning("⚠️ Najpierw uzupełnij sektory")
-    else:
-        st.session_state.etap = "losowanie"
-
+    # Przycisk zapisania sektorów
+    col1, col2 = st.columns([1,1])
+    with col1:
+        if st.button("💾 Zapisz sektory"):
+            if len(sektory) != S["liczba_sektorow"]:
+                st.error("❌ Nie wszystkie sektory mają poprawnie zdefiniowane stanowiska. Upewnij się, że poprawiłeś wszystkie błędy.")
+            else:
+                S["sektory"] = sektory
+                S["etap"] = 3
+                zapisz_dane(S)
+                st.success("✅ Sektory zapisane.")
+                st.experimental_rerun()
+    with col2:
+        if st.button("⬅️ Wstecz"):
+            S["etap"] = 1
+            zapisz_dane(S)
 
 # ================================
 # ETAP 3: DODAWANIE ZAWODNIKÓW
@@ -290,7 +282,6 @@ elif S["etap"] == 3:
             zapisz_dane(S)
 
     else:
-        # Pokazanie zdefiniowanych sektorów
         st.subheader("Zdefiniowane sektory:")
         for nazwa, stanowiska in S["sektory"].items():
             st.write(f"**Sektor {nazwa}:** {sorted(stanowiska)} (liczba stanowisk: {len(stanowiska)})")
@@ -381,11 +372,9 @@ elif S["etap"] == 4:
         zapisz_dane(S)
 
         df = pd.DataFrame(S["zawodnicy"])
-        # Jeżeli brak kolumn (np. pusta lista), zabezpieczamy
         if not df.empty:
             df["miejsce_w_sektorze"] = df.groupby("sektor")["waga"].rank(ascending=False, method="min")
 
-            # Ranking ogólny wg miejsc sektorowych
             df_sorted = pd.DataFrame()
             for miejsce in sorted(df["miejsce_w_sektorze"].unique()):
                 grupa = df[df["miejsce_w_sektorze"] == miejsce].sort_values(by="waga", ascending=False)
@@ -412,4 +401,7 @@ elif S["etap"] == 4:
             st.warning("Brak danych do wyświetlenia.")
 
 # --- Stopka ---
-
+st.markdown(
+    "<h1 style='font-size:14px; text-align:center'>© Wojciech Mierzejewski 2026</h1>",
+    unsafe_allow_html=True
+)
